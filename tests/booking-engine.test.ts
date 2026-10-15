@@ -189,7 +189,7 @@ test('generateIcsContent produces valid standard calendar invite', () => {
   const ics = generateIcsContent(mockBooking);
   assert.ok(ics.includes('BEGIN:VCALENDAR'));
   assert.ok(ics.includes('BEGIN:VEVENT'));
-  assert.ok(ics.includes('UID:RR-20261015-8K2D@rechargeroom.in'));
+  assert.ok(ics.includes('UID:RR-20261015-8K2D@rechargeroom.co.in'));
   assert.ok(ics.includes('SUMMARY:Recharge Room - 15-Minute Reset'));
   assert.ok(ics.includes('STATUS:CONFIRMED'));
   assert.ok(ics.includes('END:VEVENT'));

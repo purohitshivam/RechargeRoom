@@ -42,7 +42,7 @@ export const BUSINESS_CONFIG: BusinessConfig = {
 };
 
 export const CONTACT_CONFIG = {
-  supportEmail: 'hello@rechargeroom.in',
+  supportEmail: 'hello@rechargeroom.co.in',
   operatingNotice: 'Strictly 15-minute relaxation sessions. Not intended for medical treatment.',
   termsEffectiveDate: 'October 2026',
 };

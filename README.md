@@ -167,7 +167,7 @@ The system will automatically initialize the 16 standard columns and sync new bo
    - Click **Add New > Project** and import your GitHub repository.
    - Framework Preset: **Next.js**.
    - In **Environment Variables**, add:
-     - `NEXT_PUBLIC_SITE_URL`: `https://yourdomain.com` (or your registered custom domain)
+     - `NEXT_PUBLIC_SITE_URL`: `https://rechargeroom.co.in` (or your registered custom domain)
      - `ADMIN_PASSWORD`: Strong production password
      - `ADMIN_SESSION_SECRET`: Long random 32+ character string
      - `NEXT_PUBLIC_SUPABASE_URL`: Supabase project URL
@@ -180,7 +180,8 @@ The system will automatically initialize the 16 standard columns and sync new bo
 
 3. Attach Custom Domain:
    - Go to **Project Settings > Domains** in Vercel.
-   - Enter your purchased domain name.
+   - Enter `rechargeroom.co.in` (and `www.rechargeroom.co.in`).
+     - Set DNS records: A record pointing @ to 76.76.21.21 and CNAME www to cname.vercel-dns.com.
    - Configure the DNS records (A / CNAME) at your domain registrar as instructed by Vercel.
 
 ---

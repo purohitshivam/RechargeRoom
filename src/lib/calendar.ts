@@ -57,7 +57,7 @@ export function generateIcsContent(booking: Booking): string {
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
-    `UID:${booking.id}@rechargeroom.in`,
+    `UID:${booking.id}@rechargeroom.co.in`,
     `DTSTAMP:${nowUtc}`,
     `DTSTART:${startUtc}`,
     `DTEND:${endUtc}`,
