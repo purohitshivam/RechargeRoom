@@ -1,0 +1,286 @@
+import fs from 'fs';
+import path from 'path';
+import { Booking, BookingStatus, CreateBookingInput, PaymentStatus, AdminDashboardMetrics } from '@/types';
+import { BookingRepository, BookingFilters } from './types';
+import {
+  generateBookingId,
+  addMinutesToTime,
+  getCurrentDateIST,
+  getCurrentTimeIST,
+  timeToMinutes,
+  isOperatingDate,
+} from '@/lib/utils';
+import { BUSINESS_CONFIG } from '@/config/business';
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DB_FILE = path.join(DATA_DIR, 'local-db.json');
+
+// Concurrency mutex lock to prevent simultaneous writes in Node process
+let writeLock: Promise<void> = Promise.resolve();
+
+function acquireLock<T>(task: () => Promise<T>): Promise<T> {
+  const result = writeLock.then(task);
+  writeLock = result.then(() => {}, () => {});
+  return result;
+}
+
+function ensureDbFile(): void {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(DB_FILE)) {
+    fs.writeFileSync(DB_FILE, JSON.stringify({ bookings: [] }, null, 2), 'utf-8');
+  }
+}
+
+function readData(): { bookings: Booking[] } {
+  ensureDbFile();
+  try {
+    const raw = fs.readFileSync(DB_FILE, 'utf-8');
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error('Error reading local-db.json:', err);
+    return { bookings: [] };
+  }
+}
+
+function writeData(data: { bookings: Booking[] }): void {
+  ensureDbFile();
+  // Atomic write via temp file
+  const tmpFile = `${DB_FILE}.tmp.${Date.now()}`;
+  fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf-8');
+  fs.renameSync(tmpFile, DB_FILE);
+}
+
+export class LocalBookingRepository implements BookingRepository {
+  async getBookedSlots(dateStr: string): Promise<string[]> {
+    const { bookings } = readData();
+    return bookings
+      .filter((b) => b.booking_date === dateStr && b.booking_status !== 'cancelled')
+      .map((b) => b.start_time);
+  }
+
+  async createBooking(input: CreateBookingInput): Promise<{
+    success: boolean;
+    booking?: Booking;
+    error?: string;
+  }> {
+    return acquireLock(async () => {
+      // 1. Validation checks
+      if (!isOperatingDate(input.booking_date)) {
+        return { success: false, error: 'Recharge Room is closed on this day.' };
+      }
+
+      const todayIST = getCurrentDateIST();
+      const nowTimeIST = getCurrentTimeIST();
+
+      if (input.booking_date < todayIST) {
+        return { success: false, error: 'Cannot book slots in the past.' };
+      }
+
+      const slotMinutes = timeToMinutes(input.start_time);
+      const openMinutes = timeToMinutes(BUSINESS_CONFIG.operatingHours.open);
+      const closeMinutes = timeToMinutes(BUSINESS_CONFIG.operatingHours.close);
+
+      if (slotMinutes < openMinutes || slotMinutes + BUSINESS_CONFIG.durationMinutes > closeMinutes) {
+        return { success: false, error: 'Slot is outside operating hours.' };
+      }
+
+      // Check min advance notice if booking today
+      if (input.booking_date === todayIST) {
+        const currentMinutes = timeToMinutes(nowTimeIST);
+        if (slotMinutes <= currentMinutes + BUSINESS_CONFIG.minAdvanceNoticeMinutes) {
+          return { success: false, error: 'Slot has already started or requires more advance notice.' };
+        }
+      }
+
+      const data = readData();
+
+      // 2. Strict concurrency check: Is slot occupied?
+      const existing = data.bookings.find(
+        (b) =>
+          b.booking_date === input.booking_date &&
+          b.start_time === input.start_time &&
+          b.booking_status !== 'cancelled'
+      );
+
+      if (existing) {
+        return {
+          success: false,
+          error: 'This 15-minute slot was just booked by another customer. Please choose a different time.',
+        };
+      }
+
+      // 3. Create booking
+      const newBooking: Booking = {
+        id: generateBookingId(input.booking_date),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        booking_date: input.booking_date,
+        start_time: input.start_time,
+        end_time: addMinutesToTime(input.start_time, BUSINESS_CONFIG.durationMinutes),
+        duration_minutes: BUSINESS_CONFIG.durationMinutes,
+        customer_name: input.customer_name.trim(),
+        customer_email: input.customer_email.trim().toLowerCase(),
+        customer_phone: input.customer_phone.trim(),
+        customer_type: input.customer_type,
+        organization_unit: input.organization_unit.trim(),
+        notes: input.notes?.trim() || undefined,
+        booking_status: 'confirmed',
+        payment_status: 'pending',
+        amount: BUSINESS_CONFIG.priceInr,
+        synced_to_sheets: false,
+        synced_at: null,
+      };
+
+      data.bookings.push(newBooking);
+      writeData(data);
+
+      return { success: true, booking: newBooking };
+    });
+  }
+
+  async getBookingById(id: string): Promise<Booking | null> {
+    const { bookings } = readData();
+    const found = bookings.find((b) => b.id === id);
+    return found || null;
+  }
+
+  async getAllBookings(filters?: BookingFilters): Promise<Booking[]> {
+    const { bookings } = readData();
+    let result = [...bookings];
+
+    if (filters?.date) {
+      result = result.filter((b) => b.booking_date === filters.date);
+    }
+    if (filters?.status) {
+      result = result.filter((b) => b.booking_status === filters.status);
+    }
+    if (filters?.paymentStatus) {
+      result = result.filter((b) => b.payment_status === filters.paymentStatus);
+    }
+    if (filters?.search) {
+      const q = filters.search.toLowerCase();
+      result = result.filter(
+        (b) =>
+          b.id.toLowerCase().includes(q) ||
+          b.customer_name.toLowerCase().includes(q) ||
+          b.customer_phone.toLowerCase().includes(q) ||
+          b.customer_email.toLowerCase().includes(q)
+      );
+    }
+
+    // Sort by date DESC, start_time DESC
+    return result.sort((a, b) => {
+      const dateCmp = b.booking_date.localeCompare(a.booking_date);
+      if (dateCmp !== 0) return dateCmp;
+      return b.start_time.localeCompare(a.start_time);
+    });
+  }
+
+  async updateBookingStatus(
+    id: string,
+    status: BookingStatus,
+    cancellationReason?: string
+  ): Promise<Booking | null> {
+    return acquireLock(async () => {
+      const data = readData();
+      const index = data.bookings.findIndex((b) => b.id === id);
+      if (index === -1) return null;
+
+      data.bookings[index].booking_status = status;
+      data.bookings[index].updated_at = new Date().toISOString();
+      data.bookings[index].synced_to_sheets = false; // Trigger re-sync
+      if (cancellationReason) {
+        data.bookings[index].cancellation_reason = cancellationReason;
+      }
+
+      writeData(data);
+      return data.bookings[index];
+    });
+  }
+
+  async updatePaymentStatus(id: string, status: PaymentStatus): Promise<Booking | null> {
+    return acquireLock(async () => {
+      const data = readData();
+      const index = data.bookings.findIndex((b) => b.id === id);
+      if (index === -1) return null;
+
+      data.bookings[index].payment_status = status;
+      data.bookings[index].updated_at = new Date().toISOString();
+      data.bookings[index].synced_to_sheets = false; // Trigger re-sync
+
+      writeData(data);
+      return data.bookings[index];
+    });
+  }
+
+  async markSyncedToSheets(id: string, success: boolean): Promise<void> {
+    return acquireLock(async () => {
+      const data = readData();
+      const index = data.bookings.findIndex((b) => b.id === id);
+      if (index === -1) return;
+
+      data.bookings[index].synced_to_sheets = success;
+      data.bookings[index].synced_at = success ? new Date().toISOString() : null;
+      writeData(data);
+    });
+  }
+
+  async getUnsyncedBookings(): Promise<Booking[]> {
+    const { bookings } = readData();
+    return bookings.filter((b) => !b.synced_to_sheets);
+  }
+
+  async getDashboardMetrics(): Promise<AdminDashboardMetrics> {
+    const { bookings } = readData();
+    const today = getCurrentDateIST();
+
+    const todayConfirmed = bookings.filter(
+      (b) => b.booking_date === today && b.booking_status === 'confirmed'
+    ).length;
+
+    const upcomingBookings = bookings.filter(
+      (b) => b.booking_date > today && b.booking_status === 'confirmed'
+    ).length;
+
+    const completedSessions = bookings.filter(
+      (b) => b.booking_status === 'completed'
+    ).length;
+
+    const pendingPayments = bookings.filter(
+      (b) => b.payment_status === 'pending' && b.booking_status !== 'cancelled'
+    ).length;
+
+    // Expected revenue: All confirmed or completed sessions
+    const expectedRevenue = bookings
+      .filter((b) => ['confirmed', 'completed'].includes(b.booking_status))
+      .reduce((sum, b) => sum + (b.amount || 249), 0);
+
+    // CRITICAL: Collected revenue strictly counts only bookings marked as 'paid'
+    const collectedRevenue = bookings
+      .filter((b) => b.payment_status === 'paid')
+      .reduce((sum, b) => sum + (b.amount || 249), 0);
+
+    const unsyncedCount = bookings.filter((b) => !b.synced_to_sheets).length;
+
+    return {
+      todayConfirmed,
+      upcomingBookings,
+      completedSessions,
+      pendingPayments,
+      expectedRevenue,
+      collectedRevenue,
+      sheetsSync: {
+        total: bookings.length,
+        synced: bookings.length - unsyncedCount,
+        pending: unsyncedCount,
+        isConfigured: !!(
+          process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
+          process.env.GOOGLE_PRIVATE_KEY &&
+          process.env.GOOGLE_SHEET_ID
+        ),
+      },
+    };
+  }
+}
