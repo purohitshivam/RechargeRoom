@@ -41,21 +41,13 @@ export function TimeSlotSelector({
 
   const availableSlots = slots.filter((s) => s.available);
 
-  // Group slots by time of day
-  const morningSlots = slots.filter((s) => {
-    const hour = parseInt(s.time.split(':')[0], 10);
-    return hour < 12;
-  });
-
-  const middaySlots = slots.filter((s) => {
-    const hour = parseInt(s.time.split(':')[0], 10);
-    return hour >= 12 && hour < 15;
-  });
-
-  const afternoonSlots = slots.filter((s) => {
-    const hour = parseInt(s.time.split(':')[0], 10);
-    return hour >= 15;
-  });
+  // Group slots according to the schedule:
+  // Midday: 12:00 PM - 2:30 PM
+  const middaySlots = slots.filter((s) => s.time < '14:30');
+  // Afternoon: 3:00 PM - 5:30 PM
+  const afternoonSlots = slots.filter((s) => s.time >= '15:00' && s.time < '17:30');
+  // Evening: 6:00 PM - 8:00 PM
+  const eveningSlots = slots.filter((s) => s.time >= '18:00');
 
   const renderSlotGroup = (title: string, groupSlots: TimeSlot[]) => {
     if (groupSlots.length === 0) return null;
@@ -120,9 +112,9 @@ export function TimeSlotSelector({
       </div>
 
       <div className="bg-white border border-neutral-200 p-5 sm:p-6">
-        {renderSlotGroup('Morning (10:00 AM - 12:00 PM)', morningSlots)}
-        {renderSlotGroup('Midday (12:00 PM - 3:00 PM)', middaySlots)}
-        {renderSlotGroup('Afternoon (3:00 PM - 6:00 PM)', afternoonSlots)}
+        {renderSlotGroup('Midday (12:00 PM – 2:30 PM)', middaySlots)}
+        {renderSlotGroup('Afternoon (3:00 PM – 5:30 PM)', afternoonSlots)}
+        {renderSlotGroup('Evening (6:00 PM – 8:00 PM)', eveningSlots)}
       </div>
     </div>
   );

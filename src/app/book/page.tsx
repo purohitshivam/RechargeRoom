@@ -2,20 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { BUSINESS_CONFIG } from '@/config/business';
-import { getAvailableDates, formatDisplayDate, formatDisplayTime } from '@/lib/utils';
-import { TimeSlot, CustomerType } from '@/types';
+import { getAvailableDates } from '@/lib/utils';
+import { TimeSlot, CustomerType, Booking } from '@/types';
 import { DatePicker } from '@/components/booking/DatePicker';
 import { TimeSlotSelector } from '@/components/booking/TimeSlotSelector';
 import { CustomerForm } from '@/components/booking/CustomerForm';
 import { BookingSummary } from '@/components/booking/BookingSummary';
-import { ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
+import { ConfirmationCard } from '@/components/booking/ConfirmationCard';
+import { ArrowLeft } from 'lucide-react';
 
 export default function BookPage() {
-  const router = useRouter();
   const availableDates = getAvailableDates();
-  // Default to first operating date
   const initialDate = availableDates.find((d) => d.isOperating)?.dateStr || availableDates[0].dateStr;
 
   const [selectedDate, setSelectedDate] = useState<string>(initialDate);
@@ -36,6 +34,7 @@ export default function BookPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
 
   // Load availability whenever selected date changes
   const fetchSlots = async (dateStr: string) => {
@@ -134,7 +133,6 @@ export default function BookPage() {
 
       if (!response.ok) {
         setSubmitError(result.error || 'Failed to complete booking. Please try again.');
-        // If conflict, refresh slots so the user sees updated availability
         if (response.status === 409) {
           fetchSlots(selectedDate);
         }
@@ -142,8 +140,22 @@ export default function BookPage() {
         return;
       }
 
-      // Successful reservation: redirect to dedicated confirmation permalink
-      router.push(`/booking/confirmation/${result.booking.id}`);
+      // Successful reservation: Save to client storage and display confirmation immediately
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem(`booking_${result.booking.id}`, JSON.stringify(result.booking));
+          sessionStorage.setItem('latest_booking', JSON.stringify(result.booking));
+          window.history.pushState(null, '', `/booking/confirmation/${result.booking.id}`);
+        } catch (storageErr) {
+          console.warn('Could not save booking to sessionStorage:', storageErr);
+        }
+      }
+
+      setConfirmedBooking(result.booking);
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      setIsSubmitting(false);
     } catch (err: any) {
       console.error('Booking submission error:', err);
       setSubmitError('A network error occurred. Please check your connection and try again.');
@@ -178,59 +190,65 @@ export default function BookPage() {
 
       {/* Main Booking Content */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-5 sm:px-8 py-10 sm:py-16">
-        <div className="mb-10 text-center max-w-xl mx-auto">
-          <span className="text-xs font-mono tracking-widest uppercase text-neutral-500 mb-2 block">
-            Reserve Your 15 Minutes
-          </span>
-          <h1 className="font-editorial text-3xl sm:text-4xl md:text-5xl font-normal tracking-tight text-neutral-950 mb-3">
-            Book your session.
-          </h1>
-          <p className="text-sm sm:text-base text-neutral-600">
-            One guest per slot. Pay {BUSINESS_CONFIG.currencySymbol}{BUSINESS_CONFIG.priceInr} in person after your session.
-          </p>
-        </div>
+        {confirmedBooking ? (
+          <ConfirmationCard booking={confirmedBooking} />
+        ) : (
+          <>
+            <div className="mb-10 text-center max-w-xl mx-auto">
+              <span className="text-xs font-mono tracking-widest uppercase text-neutral-500 mb-2 block">
+                Reserve Your 15 Minutes
+              </span>
+              <h1 className="font-editorial text-3xl sm:text-4xl md:text-5xl font-normal tracking-tight text-neutral-950 mb-3">
+                Book your session.
+              </h1>
+              <p className="text-sm sm:text-base text-neutral-600">
+                One guest per slot. Pay {BUSINESS_CONFIG.currencySymbol}{BUSINESS_CONFIG.priceInr} in person after your session.
+              </p>
+            </div>
 
-        <div className="space-y-10">
-          {/* Step 1: Date Picker */}
-          <DatePicker
-            dates={availableDates}
-            selectedDate={selectedDate}
-            onSelectDate={(d) => setSelectedDate(d)}
-          />
+            <div className="space-y-10">
+              {/* Step 1: Date Picker */}
+              <DatePicker
+                dates={availableDates}
+                selectedDate={selectedDate}
+                onSelectDate={(d) => setSelectedDate(d)}
+              />
 
-          {/* Step 2: Time Slot Selector */}
-          <TimeSlotSelector
-            slots={slots}
-            selectedSlot={selectedSlot}
-            onSelectSlot={(s) => setSelectedSlot(s)}
-            isLoading={isLoadingSlots}
-          />
+              {/* Step 2: Time Slot Selector */}
+              <TimeSlotSelector
+                slots={slots}
+                selectedSlot={selectedSlot}
+                onSelectSlot={(s) => setSelectedSlot(s)}
+                isLoading={isLoadingSlots}
+              />
 
-          {/* Step 3: Customer Information */}
-          {selectedSlot && (
-            <CustomerForm
-              data={formData}
-              onChange={handleFieldChange}
-              errors={formErrors}
-            />
-          )}
+              {/* Step 3: Customer Information */}
+              {selectedSlot && (
+                <CustomerForm
+                  data={formData}
+                  onChange={handleFieldChange}
+                  errors={formErrors}
+                />
+              )}
 
-          {/* Step 4: Summary & Confirm */}
-          {selectedSlot && (
-            <BookingSummary
-              date={selectedDate}
-              time={selectedSlot}
-              name={formData.name || 'Your Name'}
-              phone={formData.phone || 'Your Phone'}
-              email={formData.email || 'Your Email'}
-              customerType={formData.customerType}
-              organizationUnit={formData.organizationUnit || 'Campus / Department'}
-              isSubmitting={isSubmitting}
-              onConfirm={handleConfirmBooking}
-              error={submitError}
-            />
-          )}
-        </div>
+              {/* Step 4: Summary & Confirm */}
+              {selectedSlot && (
+                <BookingSummary
+                  date={selectedDate}
+                  time={selectedSlot}
+                  name={formData.name || 'Your Name'}
+                  phone={formData.phone || 'Your Phone'}
+                  email={formData.email || 'Your Email'}
+                  customerType={formData.customerType}
+                  organizationUnit={formData.organizationUnit || 'Campus / Department'}
+                  isSubmitting={isSubmitting}
+                  onConfirm={handleConfirmBooking}
+                  error={submitError}
+                />
+              )}
+            </div>
+          </>
+        )}
       </main>
 
       {/* Footer minimal */}

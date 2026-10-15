@@ -25,42 +25,48 @@ before(() => {
 });
 
 test('timeToMinutes & minutesToTime converts accurately', () => {
-  assert.equal(timeToMinutes('10:00'), 600);
-  assert.equal(timeToMinutes('11:15'), 675);
-  assert.equal(minutesToTime(675), '11:15');
-  assert.equal(addMinutesToTime('11:15', 15), '11:30');
+  assert.equal(timeToMinutes('12:00'), 720);
+  assert.equal(timeToMinutes('13:15'), 795);
+  assert.equal(minutesToTime(795), '13:15');
+  assert.equal(addMinutesToTime('13:15', 15), '13:30');
 });
 
-test('generateSlotsForDate respects operating hours and breaks', () => {
+test('generateSlotsForDate respects operating hours (12 PM - 8 PM) and breaks', () => {
   const futureDate = '2026-11-20'; // Friday (operating day)
   const slots = generateSlotsForDate(futureDate, []);
 
   assert.ok(slots.length > 0, 'Should generate slots');
-  assert.equal(slots[0].time, '10:00');
-  assert.equal(slots[slots.length - 1].time, '17:45');
+  assert.equal(slots[0].time, '12:00', 'First slot must be 12:00 PM');
+  assert.equal(slots[slots.length - 1].time, '19:45', 'Last 15-min slot is 19:45 (till 20:00)');
 
-  // Verify break slots (13:30 - 14:15) are marked as unavailable
-  const breakSlot = slots.find((s) => s.time === '13:30');
-  assert.ok(breakSlot, 'Slot 13:30 should exist');
-  assert.equal(breakSlot.available, false, 'Break slot 13:30 must be unavailable');
-  assert.equal(breakSlot.reason, 'break');
+  // Verify break 1 (14:30 - 15:00) is marked as unavailable
+  const break1Slot = slots.find((s) => s.time === '14:30');
+  assert.ok(break1Slot, 'Slot 14:30 should exist');
+  assert.equal(break1Slot.available, false, 'Break slot 14:30 must be unavailable');
+  assert.equal(break1Slot.reason, 'break');
 
-  const lunchSlot = slots.find((s) => s.time === '13:45');
-  assert.ok(lunchSlot, 'Slot 13:45 should exist');
-  assert.equal(lunchSlot.available, false, 'Break slot 13:45 must be unavailable');
+  const break1Slot2 = slots.find((s) => s.time === '14:45');
+  assert.ok(break1Slot2, 'Slot 14:45 should exist');
+  assert.equal(break1Slot2.available, false, 'Break slot 14:45 must be unavailable');
+
+  // Verify break 2 (17:30 - 18:00) is marked as unavailable
+  const break2Slot = slots.find((s) => s.time === '17:30');
+  assert.ok(break2Slot, 'Slot 17:30 should exist');
+  assert.equal(break2Slot.available, false, 'Break slot 17:30 must be unavailable');
+  assert.equal(break2Slot.reason, 'break');
 });
 
 test('generateSlotsForDate marks booked slots as unavailable', () => {
   const futureDate = '2026-11-20';
-  const booked = ['11:15'];
+  const booked = ['13:15'];
   const slots = generateSlotsForDate(futureDate, booked);
 
-  const targetSlot = slots.find((s) => s.time === '11:15');
+  const targetSlot = slots.find((s) => s.time === '13:15');
   assert.ok(targetSlot);
   assert.equal(targetSlot.available, false);
   assert.equal(targetSlot.reason, 'booked');
 
-  const adjacentSlot = slots.find((s) => s.time === '11:30');
+  const adjacentSlot = slots.find((s) => s.time === '13:30');
   assert.ok(adjacentSlot);
   assert.equal(adjacentSlot.available, true);
 });
@@ -76,7 +82,7 @@ test('generateBookingId produces clean unambiguous references', () => {
 test('LocalBookingRepository prevents concurrent double-booking', async () => {
   const repo = new LocalBookingRepository();
   const testDate = '2026-11-20';
-  const testTime = '11:15';
+  const testTime = '13:15';
 
   // Simulate 5 simultaneous requests for the exact same slot
   const attempts = Array.from({ length: 5 }, (_, i) =>
@@ -137,10 +143,10 @@ test('Collected revenue counts only bookings with payment_status == paid', async
   const repo = new LocalBookingRepository();
   const testDate = '2026-11-20';
 
-  // Book slot 14:30 and keep pending
+  // Book slot 15:30 and keep pending
   await repo.createBooking({
     booking_date: testDate,
-    start_time: '14:30',
+    start_time: '15:30',
     customer_name: 'Pending Customer',
     customer_email: 'pending@mu.edu',
     customer_phone: '9876543210',
@@ -148,10 +154,10 @@ test('Collected revenue counts only bookings with payment_status == paid', async
     organization_unit: 'Dept A',
   });
 
-  // Book slot 14:45 and mark paid
+  // Book slot 15:45 and mark paid
   const b2 = await repo.createBooking({
     booking_date: testDate,
-    start_time: '14:45',
+    start_time: '15:45',
     customer_name: 'Paid Customer',
     customer_email: 'paid@mu.edu',
     customer_phone: '9876543210',
@@ -172,8 +178,8 @@ test('generateIcsContent produces valid standard calendar invite', () => {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     booking_date: '2026-10-15',
-    start_time: '11:15',
-    end_time: '11:30',
+    start_time: '12:00',
+    end_time: '12:15',
     duration_minutes: 15,
     customer_name: 'Aarav Sharma',
     customer_email: 'aarav@mu.edu',
@@ -192,6 +198,7 @@ test('generateIcsContent produces valid standard calendar invite', () => {
   assert.ok(ics.includes('UID:RR-20261015-8K2D@rechargeroom.co.in'));
   assert.ok(ics.includes('SUMMARY:Recharge Room - 15-Minute Reset'));
   assert.ok(ics.includes('STATUS:CONFIRMED'));
+  assert.ok(ics.includes('Capital Building, 11th Floor'));
   assert.ok(ics.includes('END:VEVENT'));
   assert.ok(ics.includes('END:VCALENDAR'));
 });

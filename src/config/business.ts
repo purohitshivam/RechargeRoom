@@ -3,7 +3,6 @@ import { BusinessConfig } from '@/types';
 /**
  * Recharge Room Business Configuration
  * Single source of truth for all operational, pricing, schedule, and brand parameters.
- * Note: Schedule values are initial production placeholders and can be adjusted anytime.
  */
 export const BUSINESS_CONFIG: BusinessConfig = {
   brandName: 'Recharge Room',
@@ -14,21 +13,26 @@ export const BUSINESS_CONFIG: BusinessConfig = {
   currencySymbol: '₹',
   timezone: 'Asia/Kolkata',
 
-  // Operating days: 1 (Mon) to 6 (Sat). 0 is Sunday.
+  // Operating days: Monday (1) to Saturday (6). Sunday (0) closed.
   operatingDays: [1, 2, 3, 4, 5, 6],
 
-  // Operating Hours (24-hour format in Asia/Kolkata timezone)
+  // Operating Hours: 12:00 PM to 8:00 PM
   operatingHours: {
-    open: '10:00',
-    close: '18:00', // Last 15-minute slot starts at 17:45
+    open: '12:00',
+    close: '20:00', // Last 15-minute slot starts at 19:45 and ends at 20:00
   },
 
-  // Daily sanitization and rest breaks
+  // Daily breaks: 2:30 PM - 3:00 PM and 5:30 PM - 6:00 PM
   breaks: [
     {
-      start: '13:30',
-      end: '14:15',
-      label: 'Afternoon Reset & Sanitation',
+      start: '14:30',
+      end: '15:00',
+      label: 'Afternoon Reset',
+    },
+    {
+      start: '17:30',
+      end: '18:00',
+      label: 'Evening Reset',
     },
   ],
 
@@ -37,7 +41,7 @@ export const BUSINESS_CONFIG: BusinessConfig = {
   minAdvanceNoticeMinutes: 15, // Slot cannot be booked less than 15 minutes before start
   capacityPerSlot: 1, // Exactly 1 customer per 15-minute slot
 
-  locationNote: 'MU Campus / Workplace Hub (Detailed room instructions sent on confirmation)',
+  locationNote: 'Capital Building, 11th Floor',
   paymentNote: 'Pay ₹249 in person after your session. No online payment required.',
 };
 
@@ -45,4 +49,7 @@ export const CONTACT_CONFIG = {
   supportEmail: 'hello@rechargeroom.co.in',
   operatingNotice: 'Strictly 15-minute relaxation sessions. Not intended for medical treatment.',
   termsEffectiveDate: 'October 2026',
+  arrivalGuidance: 'Please go to Capital Building, 11th Floor, 5 minutes before your designated time.',
+  googleSheetUrl: 'https://docs.google.com/spreadsheets/d/1jsla1KjhwcmCRdFURifSEa2_Eo3kYPpyBssie97K9qE/edit',
+  defaultSheetId: '1jsla1KjhwcmCRdFURifSEa2_Eo3kYPpyBssie97K9qE',
 };

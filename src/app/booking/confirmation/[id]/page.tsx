@@ -1,21 +1,24 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { getRepository } from '@/lib/db';
 import { BUSINESS_CONFIG } from '@/config/business';
-import { ConfirmationCard } from '@/components/booking/ConfirmationCard';
+import { ConfirmationClientView } from '@/components/booking/ConfirmationClientView';
 import { ArrowLeft } from 'lucide-react';
 
 interface ConfirmationPageProps {
   params: Promise<{ id: string }>;
 }
 
+export const dynamic = 'force-dynamic';
+
 export default async function BookingConfirmationPage({ params }: ConfirmationPageProps) {
   const { id } = await params;
-  const repo = getRepository();
-  const booking = await repo.getBookingById(id);
+  let initialBooking = null;
 
-  if (!booking) {
-    notFound();
+  try {
+    const repo = getRepository();
+    initialBooking = await repo.getBookingById(id);
+  } catch (err) {
+    console.warn('[Confirmation] Could not retrieve initial booking from DB:', err);
   }
 
   return (
@@ -40,8 +43,8 @@ export default async function BookingConfirmationPage({ params }: ConfirmationPa
         </div>
       </header>
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-5 sm:px-8 py-12 sm:py-20 flex items-center justify-center">
-        <ConfirmationCard booking={booking} />
+      <main className="flex-1 max-w-4xl w-full mx-auto px-5 sm:px-8 py-10 sm:py-16 flex items-center justify-center">
+        <ConfirmationClientView id={id} initialBooking={initialBooking} />
       </main>
 
       <footer className="border-t border-neutral-200 py-6 text-center text-xs font-mono text-neutral-500">

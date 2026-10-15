@@ -1,8 +1,10 @@
 import { google } from 'googleapis';
 import { Booking } from '@/types';
 import { getRepository } from '@/lib/db';
+import { CONTACT_CONFIG } from '@/config/business';
 
 const SHEET_NAME = 'Recharge Room Bookings';
+const DEFAULT_SHEET_ID = CONTACT_CONFIG.defaultSheetId;
 const HEADERS = [
   'Booking ID',
   'Created At',
@@ -25,7 +27,7 @@ const HEADERS = [
 function getSheetsClient() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   let privateKey = process.env.GOOGLE_PRIVATE_KEY;
-  const sheetId = process.env.GOOGLE_SHEET_ID;
+  const sheetId = process.env.GOOGLE_SHEET_ID || DEFAULT_SHEET_ID;
 
   if (!email || !privateKey || !sheetId) {
     return null;
@@ -50,11 +52,9 @@ function getSheetsClient() {
  * Ensures the target sheet and its header row exist.
  */
 async function ensureSheetAndHeaders(sheets: any, sheetId: string): Promise<string> {
-  // 1. Get spreadsheet metadata to check sheet tabs
   const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
   const sheetList = meta.data.sheets || [];
   
-  // Use "Recharge Room Bookings" if it exists, otherwise fall back to first sheet's title
   let targetTab = SHEET_NAME;
   const exists = sheetList.some((s: any) => s.properties?.title === SHEET_NAME);
 
@@ -64,7 +64,6 @@ async function ensureSheetAndHeaders(sheets: any, sheetId: string): Promise<stri
     }
   }
 
-  // 2. Check if headers exist in row 1
   const headerCheck = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
     range: `'${targetTab}'!A1:P1`,
@@ -108,21 +107,40 @@ function mapBookingToRow(b: Booking): any[] {
 
 /**
  * Idempotently syncs a single booking to Google Sheets.
- * If the booking ID is found in Column A, updates that row.
- * Otherwise, appends a new row at the bottom.
+ * Supports both direct Webhook URL (instant 0-credential setup)
+ * and Google Cloud Service Account API.
  */
 export async function syncBookingToSheets(booking: Booking): Promise<{
   success: boolean;
   message?: string;
   error?: string;
 }> {
-  const client = getSheetsClient();
   const repo = getRepository();
 
+  // 1. Try Google Apps Script Webhook if configured (Fastest, zero-credential setup)
+  const webhookUrl = process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  if (webhookUrl) {
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(booking),
+      });
+      if (res.ok) {
+        await repo.markSyncedToSheets(booking.id, true);
+        return { success: true, message: 'Synced to Google Sheet via webhook.' };
+      }
+    } catch (err: any) {
+      console.warn('[Google Sheet Webhook Sync Notice]:', err?.message || err);
+    }
+  }
+
+  // 2. Try Google Cloud Service Account API
+  const client = getSheetsClient();
   if (!client) {
     return {
       success: false,
-      error: 'Google Sheets integration is not configured. Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, and GOOGLE_SHEET_ID.',
+      error: 'Google Sheets sync pending. Share sheet with service account or configure GOOGLE_SHEET_WEBHOOK_URL.',
     };
   }
 
@@ -130,7 +148,6 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
     const { sheets, sheetId } = client;
     const tabName = await ensureSheetAndHeaders(sheets, sheetId);
 
-    // Fetch existing Booking IDs in Column A to check for row updates
     const colAResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
       range: `'${tabName}'!A:A`,
@@ -141,7 +158,7 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
 
     for (let i = 0; i < rows.length; i++) {
       if (rows[i][0] === booking.id) {
-        existingRowIndex = i + 1; // 1-indexed row number in Sheets
+        existingRowIndex = i + 1;
         break;
       }
     }
@@ -149,7 +166,6 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
     const rowData = mapBookingToRow(booking);
 
     if (existingRowIndex > 0) {
-      // Update existing row
       await sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
         range: `'${tabName}'!A${existingRowIndex}:P${existingRowIndex}`,
@@ -159,9 +175,8 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
         },
       });
       await repo.markSyncedToSheets(booking.id, true);
-      return { success: true, message: `Updated row ${existingRowIndex} for booking ${booking.id}` };
+      return { success: true, message: `Updated row ${existingRowIndex} in Google Sheet.` };
     } else {
-      // Append new row
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
         range: `'${tabName}'!A:P`,
@@ -172,10 +187,10 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
         },
       });
       await repo.markSyncedToSheets(booking.id, true);
-      return { success: true, message: `Appended new row for booking ${booking.id}` };
+      return { success: true, message: 'Appended new booking row to Google Sheet.' };
     }
   } catch (err: any) {
-    console.error(`[Google Sheets Sync Error for ${booking.id}]:`, err?.message || err);
+    console.error(`[Google Sheets API Sync Error for ${booking.id}]:`, err?.message || err);
     await repo.markSyncedToSheets(booking.id, false);
     return {
       success: false,

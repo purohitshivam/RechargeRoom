@@ -1,0 +1,101 @@
+/**
+ * ==============================================================================
+ * Recharge Room — Google Apps Script for Instant Sheet Sync
+ * ==============================================================================
+ * 
+ * Setup Instructions (Takes 60 seconds):
+ * 1. Open your Google Sheet: https://docs.google.com/spreadsheets/d/1jsla1KjhwcmCRdFURifSEa2_Eo3kYPpyBssie97K9qE/edit
+ * 2. In the top menu, click Extensions > Apps Script.
+ * 3. Delete any default code in Code.gs, paste this entire file, and click Save (Floppy disk icon).
+ * 4. Click the blue Deploy button (top right) > New deployment.
+ * 5. Click the gear icon next to "Select type" > Web app.
+ * 6. Set Description: "Recharge Room Webhook".
+ * 7. Set Execute as: "Me".
+ * 8. Set Who has access: "Anyone" (crucial so Vercel can post bookings).
+ * 9. Click Deploy, Authorize access with your Google account.
+ * 10. Copy the Web app URL (starts with https://script.google.com/macros/s/...).
+ * 11. In your Vercel Project Settings > Environment Variables, add:
+ *     GOOGLE_SHEET_WEBHOOK_URL = <your-copied-web-app-url>
+ * 
+ * Done! Every booking will now instantly appear in your Google Sheet!
+ */
+
+function doPost(e) {
+  try {
+    var raw = e.postData.contents;
+    var data = JSON.parse(raw);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+    // 1. Ensure header row exists
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow([
+        'Booking ID',
+        'Created At',
+        'Booking Date',
+        'Start Time',
+        'End Time',
+        'Duration (Mins)',
+        'Customer Name',
+        'Mobile Number',
+        'Email Address',
+        'Customer Type',
+        'College/Company/Dept',
+        'Customer Note',
+        'Booking Status',
+        'Payment Status',
+        'Amount (INR)',
+        'Last Updated At'
+      ]);
+      // Format headers
+      var headerRange = sheet.getRange(1, 1, 1, 16);
+      headerRange.setFontWeight('bold');
+      headerRange.setBackground('#F3F4F6');
+    }
+
+    // 2. Check if booking ID already exists to update
+    var bookingId = data.id;
+    var lastRow = sheet.getLastRow();
+    var rowIndexToUpdate = -1;
+
+    if (lastRow > 1) {
+      var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) {
+        if (ids[i][0] === bookingId) {
+          rowIndexToUpdate = i + 2; // 1-indexed, skipping header
+          break;
+        }
+      }
+    }
+
+    var rowValues = [
+      data.id,
+      data.created_at,
+      data.booking_date,
+      data.start_time,
+      data.end_time,
+      data.duration_minutes || 15,
+      data.customer_name,
+      data.customer_phone,
+      data.customer_email,
+      data.customer_type,
+      data.organization_unit,
+      data.notes || '',
+      (data.booking_status || 'confirmed').toUpperCase(),
+      (data.payment_status || 'pending').toUpperCase(),
+      data.amount || 249,
+      data.updated_at || new Date().toISOString()
+    ];
+
+    if (rowIndexToUpdate > 0) {
+      sheet.getRange(rowIndexToUpdate, 1, 1, 16).setValues([rowValues]);
+    } else {
+      sheet.appendRow(rowValues);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ success: true, id: bookingId }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}

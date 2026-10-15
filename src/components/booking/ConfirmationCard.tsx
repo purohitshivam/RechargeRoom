@@ -82,9 +82,18 @@ export function ConfirmationCard({ booking }: ConfirmationCardProps) {
       </div>
 
       {/* Arrival Instructions */}
-      <div className="py-5 text-xs text-neutral-600 border-b border-neutral-200 leading-relaxed">
-        <strong className="text-neutral-900 block mb-1">Arrival Guidance:</strong>
-        Please arrive 2 minutes prior to your slot time at {BUSINESS_CONFIG.locationNote}. No apparel change is required.
+      <div className="py-6 border-b border-neutral-200">
+        <div className="p-4 bg-neutral-100 border border-neutral-200">
+          <span className="font-mono text-xs uppercase tracking-wider font-semibold text-neutral-900 block mb-1">
+            Where to Go:
+          </span>
+          <p className="font-editorial text-xl text-neutral-950 mb-1.5">
+            Capital Building, 11th Floor
+          </p>
+          <p className="text-xs text-neutral-700 leading-relaxed">
+            Please go to <strong>Capital Building, 11th floor</strong>, 5 minutes before your designated time ({formatDisplayTime(booking.start_time)}). No special attire or preparation is required.
+          </p>
+        </div>
       </div>
 
       {/* Calendar Actions */}
