@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRepository } from '@/lib/db';
 import { generateSlotsForDate, getCurrentDateIST, isOperatingDate } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -22,10 +24,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const repo = getRepository();
-    const bookedTimes = await repo.getBookedSlots(dateStr);
-    const slots = generateSlotsForDate(dateStr, bookedTimes);
+    let bookedTimes: string[] = [];
+    try {
+      const repo = getRepository();
+      bookedTimes = await repo.getBookedSlots(dateStr);
+    } catch (err: any) {
+      console.warn('[Availability API] Notice: Database query failed, proceeding with free slots:', err?.message || err);
+      bookedTimes = [];
+    }
 
+    const slots = generateSlotsForDate(dateStr, bookedTimes);
     const availableCount = slots.filter((s) => s.available).length;
 
     return NextResponse.json({
@@ -39,6 +47,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error in availability API:', error);
-    return NextResponse.json({ error: 'Failed to retrieve slot availability.' }, { status: 500 });
+    return NextResponse.json(
+      { error: error?.message || 'Failed to retrieve slot availability.' },
+      { status: 500 }
+    );
   }
 }

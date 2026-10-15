@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { Booking, BookingStatus, CreateBookingInput, PaymentStatus, AdminDashboardMetrics } from '@/types';
 import { BookingRepository, BookingFilters } from './types';
 import {
@@ -12,8 +13,24 @@ import {
 } from '@/lib/utils';
 import { BUSINESS_CONFIG } from '@/config/business';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_FILE = path.join(DATA_DIR, 'local-db.json');
+// Global in-memory cache to ensure serverless reliability even if filesystem is restricted
+declare global {
+  var __RECHARGE_ROOM_LOCAL_BOOKINGS__: Booking[] | undefined;
+}
+
+if (!globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__) {
+  globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ = [];
+}
+
+function getStoragePaths() {
+  // On Vercel / AWS Lambda, process.cwd() is read-only (/var/task).
+  // The only writable directory is os.tmpdir() (/tmp).
+  const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production';
+  const baseDir = isServerless ? os.tmpdir() : process.cwd();
+  const dataDir = path.join(baseDir, isServerless ? 'recharge-room' : 'data');
+  const dbFile = path.join(dataDir, 'local-db.json');
+  return { dataDir, dbFile };
+}
 
 // Concurrency mutex lock to prevent simultaneous writes in Node process
 let writeLock: Promise<void> = Promise.resolve();
@@ -24,40 +41,66 @@ function acquireLock<T>(task: () => Promise<T>): Promise<T> {
   return result;
 }
 
-function ensureDbFile(): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify({ bookings: [] }, null, 2), 'utf-8');
+function ensureDbFile(): string | null {
+  try {
+    const { dataDir, dbFile } = getStoragePaths();
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    if (!fs.existsSync(dbFile)) {
+      fs.writeFileSync(dbFile, JSON.stringify({ bookings: globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ || [] }, null, 2), 'utf-8');
+    }
+    return dbFile;
+  } catch (err) {
+    console.warn('[LocalDB] Notice: File persistence unavailable, using in-memory store:', err);
+    return null;
   }
 }
 
 function readData(): { bookings: Booking[] } {
-  ensureDbFile();
-  try {
-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error('Error reading local-db.json:', err);
-    return { bookings: [] };
+  const dbFile = ensureDbFile();
+  if (dbFile) {
+    try {
+      const raw = fs.readFileSync(dbFile, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.bookings)) {
+        globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ = parsed.bookings;
+        return parsed;
+      }
+    } catch (err) {
+      console.warn('[LocalDB] Error reading local-db.json, using in-memory store:', err);
+    }
   }
+  return { bookings: globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ || [] };
 }
 
 function writeData(data: { bookings: Booking[] }): void {
-  ensureDbFile();
-  // Atomic write via temp file
-  const tmpFile = `${DB_FILE}.tmp.${Date.now()}`;
-  fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf-8');
-  fs.renameSync(tmpFile, DB_FILE);
+  globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ = data.bookings;
+  const dbFile = ensureDbFile();
+  if (dbFile) {
+    try {
+      const tmpFile = `${dbFile}.tmp.${Date.now()}`;
+      fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(tmpFile, dbFile);
+    } catch (err) {
+      console.warn('[LocalDB] Notice: Could not write to disk, in-memory updated:', err);
+    }
+  }
 }
 
 export class LocalBookingRepository implements BookingRepository {
   async getBookedSlots(dateStr: string): Promise<string[]> {
-    const { bookings } = readData();
-    return bookings
-      .filter((b) => b.booking_date === dateStr && b.booking_status !== 'cancelled')
-      .map((b) => b.start_time);
+    try {
+      const { bookings } = readData();
+      return (bookings || [])
+        .filter((b) => b.booking_date === dateStr && b.booking_status !== 'cancelled')
+        .map((b) => b.start_time);
+    } catch (err) {
+      console.error('Error fetching booked slots in LocalBookingRepository:', err);
+      return (globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ || [])
+        .filter((b) => b.booking_date === dateStr && b.booking_status !== 'cancelled')
+        .map((b) => b.start_time);
+    }
   }
 
   async createBooking(input: CreateBookingInput): Promise<{
