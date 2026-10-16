@@ -1,19 +1,13 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Newsreader } from 'next/font/google';
+import { Manrope } from 'next/font/google';
 import './globals.css';
 import { BUSINESS_CONFIG } from '@/config/business';
 
-const inter = Inter({
+const manrope = Manrope({
   subsets: ['latin'],
-  variable: '--font-sans',
+  variable: '--font-manrope',
   display: 'swap',
-});
-
-const newsreader = Newsreader({
-  subsets: ['latin'],
-  style: ['normal', 'italic'],
-  variable: '--font-serif',
-  display: 'swap',
+  weight: ['400', '500', '600', '700', '800'],
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://rechargeroom.co.in';
@@ -70,8 +64,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${newsreader.variable} scroll-smooth`}>
-      <body className="min-h-screen flex flex-col font-sans bg-[#fafafa] text-[#111111]">
+    <html lang="en" className={`${manrope.variable} scroll-smooth`}>
+      <body className="min-h-screen flex flex-col font-sans bg-[#fafafa] text-[#111111] font-normal">
         {children}
       </body>
     </html>

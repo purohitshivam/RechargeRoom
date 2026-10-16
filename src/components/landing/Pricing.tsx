@@ -19,10 +19,10 @@ export function Pricing() {
           <span className="text-xs font-mono tracking-widest uppercase text-neutral-500 mb-3 block">
             Transparent Pricing
           </span>
-          <h2 className="font-editorial text-3xl sm:text-4xl md:text-5xl font-normal tracking-tight text-neutral-950 mb-3">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-neutral-950 mb-3">
             One simple rate.
           </h2>
-          <p className="text-neutral-600 text-sm sm:text-base">
+          <p className="text-neutral-600 text-sm sm:text-base font-normal">
             No subscriptions, no hidden convenience fees, and no advance card charges.
           </p>
         </div>
@@ -30,18 +30,18 @@ export function Pricing() {
         <div className="bg-white border border-neutral-200/90 p-8 sm:p-12">
           <div className="flex flex-col sm:flex-row sm:items-baseline justify-between pb-8 mb-8 border-b border-neutral-200 gap-4">
             <div>
-              <span className="font-mono text-xs uppercase tracking-wider text-neutral-500 block mb-1">
+              <span className="font-mono text-xs uppercase tracking-wider text-neutral-500 block mb-1 font-medium">
                 Standard Session
               </span>
-              <h3 className="font-editorial text-3xl sm:text-4xl font-normal text-neutral-950">
+              <h3 className="text-3xl sm:text-4xl font-semibold text-neutral-950">
                 15-Minute Recharge
               </h3>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="font-editorial text-5xl sm:text-6xl font-normal text-neutral-950">
+              <span className="text-5xl sm:text-6xl font-extrabold text-neutral-950 tracking-tight font-sans">
                 {BUSINESS_CONFIG.currencySymbol}{BUSINESS_CONFIG.priceInr}
               </span>
-              <span className="text-sm font-mono text-neutral-500 uppercase">
+              <span className="text-sm font-mono text-neutral-500 uppercase font-medium">
                 / session
               </span>
             </div>
@@ -51,13 +51,13 @@ export function Pricing() {
             {inclusions.map((inc, i) => (
               <div key={i} className="flex items-start gap-3">
                 <Check className="w-4 h-4 text-neutral-900 mt-1 shrink-0" strokeWidth={2} />
-                <span className="text-sm text-neutral-700 leading-normal">{inc}</span>
+                <span className="text-sm text-neutral-700 leading-normal font-normal">{inc}</span>
               </div>
             ))}
           </div>
 
           <div className="pt-6 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-xs text-neutral-500 font-mono">
+            <p className="text-xs text-neutral-500 font-mono font-medium">
               Physical payment collected at venue via UPI or Cash
             </p>
             <Link

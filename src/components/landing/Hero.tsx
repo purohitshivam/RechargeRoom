@@ -62,10 +62,10 @@ export function Hero() {
             <span className="text-[11px] font-mono tracking-widest uppercase text-neutral-500 mb-2 block">
               15-Minute Calibrated Relaxation
             </span>
-            <h2 className="font-editorial text-2xl sm:text-3xl md:text-4xl font-normal text-neutral-950">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-neutral-950">
               Quick Tension Release
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-600 max-w-xl mx-auto mt-2">
+            <p className="text-xs sm:text-sm text-neutral-600 max-w-xl mx-auto mt-2 font-normal">
               Pick one focused area or mix multiple during your 15-minute slot. Trained masseurs, calibrated acupressure.
             </p>
           </div>
@@ -78,14 +78,14 @@ export function Hero() {
             >
               <div>
                 <span className="text-3xl block mb-2 sm:mb-3">💆‍♂️</span>
-                <div className="font-editorial text-lg sm:text-xl text-neutral-950 group-hover:underline">
+                <div className="text-lg sm:text-xl font-semibold text-neutral-950 group-hover:underline">
                   Head Massage
                 </div>
-                <p className="text-[11px] font-mono text-neutral-500 mt-1.5 leading-snug">
+                <p className="text-[11px] font-mono text-neutral-500 mt-1.5 leading-snug font-normal">
                   Cranial acupressure for screen & mental fatigue
                 </p>
               </div>
-              <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-neutral-400 group-hover:text-neutral-950 flex items-center justify-center gap-1">
+              <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-neutral-400 group-hover:text-neutral-950 font-medium flex items-center justify-center gap-1">
                 <span>Book Slot</span>
                 <ArrowRight className="w-3 h-3" />
               </div>
@@ -97,14 +97,14 @@ export function Hero() {
             >
               <div>
                 <span className="text-3xl block mb-2 sm:mb-3">✨</span>
-                <div className="font-editorial text-lg sm:text-xl text-neutral-950 group-hover:underline">
+                <div className="text-lg sm:text-xl font-semibold text-neutral-950 group-hover:underline">
                   Neck Massage
                 </div>
-                <p className="text-[11px] font-mono text-neutral-500 mt-1.5 leading-snug">
+                <p className="text-[11px] font-mono text-neutral-500 mt-1.5 leading-snug font-normal">
                   Suboccipital release from laptop & phone strain
                 </p>
               </div>
-              <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-neutral-400 group-hover:text-neutral-950 flex items-center justify-center gap-1">
+              <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-neutral-400 group-hover:text-neutral-950 font-medium flex items-center justify-center gap-1">
                 <span>Book Slot</span>
                 <ArrowRight className="w-3 h-3" />
               </div>
@@ -116,14 +116,14 @@ export function Hero() {
             >
               <div>
                 <span className="text-3xl block mb-2 sm:mb-3">🌿</span>
-                <div className="font-editorial text-lg sm:text-xl text-neutral-950 group-hover:underline">
+                <div className="text-lg sm:text-xl font-semibold text-neutral-950 group-hover:underline">
                   Shoulder Massage
                 </div>
-                <p className="text-[11px] font-mono text-neutral-500 mt-1.5 leading-snug">
+                <p className="text-[11px] font-mono text-neutral-500 mt-1.5 leading-snug font-normal">
                   Trapezius tension relief to restore upright ease
                 </p>
               </div>
-              <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-neutral-400 group-hover:text-neutral-950 flex items-center justify-center gap-1">
+              <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-neutral-400 group-hover:text-neutral-950 font-medium flex items-center justify-center gap-1">
                 <span>Book Slot</span>
                 <ArrowRight className="w-3 h-3" />
               </div>
@@ -135,14 +135,14 @@ export function Hero() {
             >
               <div>
                 <span className="text-3xl block mb-2 sm:mb-3">🧘</span>
-                <div className="font-editorial text-lg sm:text-xl text-neutral-950 group-hover:underline">
+                <div className="text-lg sm:text-xl font-semibold text-neutral-950 group-hover:underline">
                   Upper Back
                 </div>
-                <p className="text-[11px] font-mono text-neutral-500 mt-1.5 leading-snug">
+                <p className="text-[11px] font-mono text-neutral-500 mt-1.5 leading-snug font-normal">
                   Postural decompression for desk workers & students
                 </p>
               </div>
-              <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-neutral-400 group-hover:text-neutral-950 flex items-center justify-center gap-1">
+              <div className="mt-4 text-[10px] font-mono uppercase tracking-wider text-neutral-400 group-hover:text-neutral-950 font-medium flex items-center justify-center gap-1">
                 <span>Book Slot</span>
                 <ArrowRight className="w-3 h-3" />
               </div>

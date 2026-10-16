@@ -9,7 +9,7 @@ export function Footer() {
       <div className="max-w-6xl mx-auto px-5 sm:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 pb-12 border-b border-neutral-300">
           <div className="md:col-span-2">
-            <span className="font-editorial text-2xl font-normal tracking-tight text-neutral-950 block mb-3">
+            <span className="font-extrabold text-2xl tracking-tight text-neutral-950 block mb-3 font-sans">
               {BUSINESS_CONFIG.brandName}
             </span>
             <p className="text-sm text-neutral-600 max-w-md leading-relaxed mb-4">

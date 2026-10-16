@@ -24,10 +24,10 @@ export function MadeForYourDay() {
           <span className="text-xs font-mono tracking-widest uppercase text-neutral-500 mb-3 block">
             Contextual Purpose
           </span>
-          <h2 className="font-editorial text-3xl sm:text-4xl md:text-5xl font-normal tracking-tight text-neutral-950 mb-4">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-neutral-950 mb-4">
             Made for your day.
           </h2>
-          <p className="text-neutral-600 text-base sm:text-lg">
+          <p className="text-neutral-600 text-base sm:text-lg font-normal">
             Purposefully created for the rhythms of academic and workplace life.
           </p>
         </div>
@@ -39,13 +39,13 @@ export function MadeForYourDay() {
               className="bg-white p-7 sm:p-8 border border-neutral-200/90 flex flex-col justify-between"
             >
               <div>
-                <span className="font-mono text-xs tracking-wider uppercase text-neutral-500 block mb-4 pb-2 border-b border-neutral-100">
+                <span className="font-mono text-xs tracking-wider uppercase text-neutral-500 block mb-4 pb-2 border-b border-neutral-100 font-medium">
                   {u.category}
                 </span>
-                <h3 className="font-editorial text-xl sm:text-2xl font-normal text-neutral-950 mb-3 leading-snug">
+                <h3 className="text-xl sm:text-2xl font-semibold text-neutral-950 mb-3 leading-snug">
                   {u.headline}
                 </h3>
-                <p className="text-sm text-neutral-600 leading-relaxed">{u.body}</p>
+                <p className="text-sm text-neutral-600 leading-relaxed font-normal">{u.body}</p>
               </div>
             </div>
           ))}

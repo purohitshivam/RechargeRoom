@@ -20,8 +20,20 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-neutral-900 selection:text-white;
+    @apply bg-background text-foreground antialiased selection:bg-neutral-900 selection:text-white font-sans font-normal;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  h1, h2 {
+    @apply font-extrabold tracking-tight;
+  }
+  h3 {
+    @apply font-semibold;
+  }
+  button, .btn {
+    @apply font-medium;
+  }
+  p {
+    @apply font-normal;
   }
 }
 
@@ -41,9 +53,9 @@
   background: #a1a1aa;
 }
 
-/* Editorial typography utilities */
+/* Editorial typography utilities mapped to Manrope */
 .font-editorial {
-  font-family: var(--font-serif), Georgia, serif;
+  font-family: var(--font-manrope), sans-serif;
   letter-spacing: -0.02em;
 }
 

@@ -16,8 +16,9 @@ export default {
         "muted-foreground": "var(--muted-foreground)",
       },
       fontFamily: {
-        serif: ["var(--font-serif)", "Playfair Display", "Georgia", "serif"],
-        sans: ["var(--font-sans)", "Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        sans: ["var(--font-manrope)", "Manrope", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        editorial: ["var(--font-manrope)", "Manrope", "sans-serif"],
+        serif: ["var(--font-manrope)", "Manrope", "sans-serif"],
       },
       maxWidth: {
         prose: "65ch",

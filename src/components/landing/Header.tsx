@@ -6,7 +6,7 @@ export function Header() {
     <header className="sticky top-0 z-40 w-full bg-[#fafafa]/90 backdrop-blur-md border-b border-neutral-200">
       <div className="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
         <Link href="/" className="group flex items-center gap-2">
-          <span className="font-editorial text-xl sm:text-2xl font-medium tracking-tight text-neutral-950 group-hover:opacity-80 transition-opacity">
+          <span className="font-extrabold text-xl sm:text-2xl tracking-tight text-neutral-950 group-hover:opacity-80 transition-opacity font-sans">
             {BUSINESS_CONFIG.brandName}
           </span>
         </Link>
