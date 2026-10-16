@@ -70,14 +70,27 @@ export function AdminDashboardClient({
   const handleSyncSheets = async () => {
     setIsSyncing(true);
     try {
-      await fetch('/api/sync/sheets', {
+      const res = await fetch('/api/sync/sheets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'sync_all' }),
       });
+      const data = await res.json();
       await refreshData();
-    } catch (err) {
+      return {
+        success: res.ok && data.success !== false,
+        message:
+          data.message ||
+          (res.ok
+            ? `Successfully pushed bookings to Google Sheet.`
+            : 'Failed to sync sheets.'),
+      };
+    } catch (err: any) {
       console.error('Failed to sync sheets:', err);
+      return {
+        success: false,
+        message: err?.message || 'Network error while syncing sheets.',
+      };
     } finally {
       setIsSyncing(false);
     }

@@ -48,10 +48,20 @@ export async function POST(request: NextRequest) {
 
       // Immediately test the newly saved webhook
       const testResult = await testSheetsConnection();
+
+      // Automatically sync any pending bookings right now!
+      let syncResult = null;
+      if (testResult.success) {
+        syncResult = await syncAllPendingBookings();
+      }
+
       return NextResponse.json({
-        success: true,
-        message: 'Google Apps Script Webhook URL saved successfully.',
+        success: testResult.success,
+        message: testResult.success
+          ? `Webhook verified! Automatically pushed ${syncResult?.succeeded || 0} booking(s) to your Google Sheet.`
+          : 'Webhook saved, but connection test failed.',
         test: testResult,
+        sync: syncResult,
       });
     }
 
@@ -66,7 +76,11 @@ export async function POST(request: NextRequest) {
 
     // 4. Default: Sync all pending/unsynced bookings
     const result = await syncAllPendingBookings();
-    return NextResponse.json(result);
+    return NextResponse.json({
+      success: result.failed === 0,
+      message: `Synchronized ${result.succeeded} booking(s) to Google Sheets.${result.failed > 0 ? ` (${result.failed} failed: ${result.errors.join(', ')})` : ''}`,
+      ...result,
+    });
   } catch (error: any) {
     console.error('Error in /api/sync/sheets:', error);
     return NextResponse.json(

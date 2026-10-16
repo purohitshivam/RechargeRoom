@@ -197,6 +197,24 @@ export function MetricsGrid({
     }
   };
 
+  const handleRunSync = async () => {
+    setStatusFeedback(null);
+    try {
+      const res = await onSyncSheets();
+      if (res) {
+        setStatusFeedback({
+          type: res.success ? 'success' : 'error',
+          text: res.message,
+        });
+      }
+    } catch (err: any) {
+      setStatusFeedback({
+        type: 'error',
+        text: err?.message || 'Sync failed.',
+      });
+    }
+  };
+
   const handleSaveWebhookSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!webhookInput.trim()) return;
@@ -317,7 +335,7 @@ export function MetricsGrid({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={onSyncSheets}
+                  onClick={handleRunSync}
                   isLoading={isSyncing}
                   className="h-9 px-3 text-xs font-mono uppercase flex items-center gap-1.5"
                 >
