@@ -10,15 +10,25 @@
  * 4. Click the blue Deploy button (top right) > New deployment.
  * 5. Click the gear icon next to "Select type" > Web app.
  * 6. Set Description: "Recharge Room Webhook".
- * 7. Set Execute as: "Me".
- * 8. Set Who has access: "Anyone" (crucial so Vercel can post bookings).
+ * 7. Set Execute as: "Me" (your Google account).
+ * 8. Set Who has access: "Anyone" (crucial so bookings can be posted without login).
  * 9. Click Deploy, Authorize access with your Google account.
- * 10. Copy the Web app URL (starts with https://script.google.com/macros/s/...).
- * 11. In your Vercel Project Settings > Environment Variables, add:
- *     GOOGLE_SHEET_WEBHOOK_URL = <your-copied-web-app-url>
+ * 10. Copy the Web app URL (starts with https://script.google.com/macros/s/... and ends in /exec).
+ * 11. Open your Recharge Room Admin (/admin) > Google Sheets Setup, paste the URL and click "Save & Test Connection".
+ *     (Or add GOOGLE_SHEET_WEBHOOK_URL in your Vercel Project Settings > Environment Variables).
  * 
  * Done! Every booking will now instantly appear in your Google Sheet!
  */
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    status: 'online',
+    service: 'Recharge Room Google Sheets Sync',
+    message: 'Google Apps Script webhook is active and ready to receive bookings.',
+    sheetName: SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName(),
+    timestamp: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
 
 function doPost(e) {
   try {
@@ -50,9 +60,20 @@ function doPost(e) {
       var headerRange = sheet.getRange(1, 1, 1, 16);
       headerRange.setFontWeight('bold');
       headerRange.setBackground('#F3F4F6');
+      sheet.setFrozenRows(1);
     }
 
-    // 2. Check if booking ID already exists to update
+    // 2. Handle connection test ping
+    if (data.is_test || data.action === 'ping') {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        is_test: true,
+        message: 'Recharge Room webhook test verified successfully.',
+        timestamp: new Date().toISOString()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 3. Check if booking ID already exists to update
     var bookingId = data.id;
     var lastRow = sheet.getLastRow();
     var rowIndexToUpdate = -1;
@@ -92,10 +113,16 @@ function doPost(e) {
       sheet.appendRow(rowValues);
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ success: true, id: bookingId }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      id: bookingId,
+      action: rowIndexToUpdate > 0 ? 'updated' : 'inserted',
+      row: rowIndexToUpdate > 0 ? rowIndexToUpdate : sheet.getLastRow()
+    })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 }

@@ -70,12 +70,65 @@ export function AdminDashboardClient({
   const handleSyncSheets = async () => {
     setIsSyncing(true);
     try {
-      await fetch('/api/sync/sheets', { method: 'POST' });
+      await fetch('/api/sync/sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_all' }),
+      });
       await refreshData();
     } catch (err) {
       console.error('Failed to sync sheets:', err);
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    try {
+      const res = await fetch('/api/sync/sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'test' }),
+      });
+      const data = await res.json();
+      return {
+        success: data.success ?? res.ok,
+        message: data.message || (res.ok ? 'Connection verified.' : 'Connection test failed.'),
+        method: data.method,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || 'Network error while testing connection.',
+      };
+    }
+  };
+
+  const handleSaveWebhook = async (url: string) => {
+    try {
+      const res = await fetch('/api/sync/sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_webhook', url }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await refreshData();
+        return {
+          success: true,
+          message: data.test?.message || 'Webhook URL saved and verified.',
+        };
+      } else {
+        return {
+          success: false,
+          message: data.error || 'Failed to save webhook.',
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || 'Network error while saving webhook.',
+      };
     }
   };
 
@@ -145,6 +198,8 @@ export function AdminDashboardClient({
         <MetricsGrid
           metrics={metrics}
           onSyncSheets={handleSyncSheets}
+          onTestConnection={handleTestConnection}
+          onSaveWebhook={handleSaveWebhook}
           isSyncing={isSyncing}
         />
 

@@ -25,4 +25,6 @@ export interface BookingRepository {
   markSyncedToSheets(id: string, success: boolean): Promise<void>;
   getUnsyncedBookings(): Promise<Booking[]>;
   getDashboardMetrics(): Promise<AdminDashboardMetrics>;
+  getSetting(key: string): Promise<string | null>;
+  setSetting(key: string, value: string): Promise<void>;
 }

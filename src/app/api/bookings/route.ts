@@ -96,16 +96,25 @@ export async function POST(request: NextRequest) {
 
     const booking = result.booking;
 
-    // Asynchronously trigger Google Sheets sync in background (non-blocking)
-    syncBookingToSheets(booking).catch((err) => {
-      console.warn(`[Background Sheets Sync] Failed for ${booking.id}:`, err);
-    });
+    // Await Google Sheets sync so serverless lambda does not freeze before HTTP request completes
+    let sheetsSyncResult: { success: boolean; message?: string; error?: string } | undefined;
+    try {
+      sheetsSyncResult = await syncBookingToSheets(booking);
+      console.log(`[Sheets Sync for ${booking.id}]:`, sheetsSyncResult);
+    } catch (err: any) {
+      console.error(`[Sheets Sync Error for ${booking.id}]:`, err);
+      sheetsSyncResult = {
+        success: false,
+        error: err?.message || 'Sync encountered unexpected error.',
+      };
+    }
 
     return NextResponse.json(
       {
         success: true,
         message: 'Your 15-minute reset is confirmed.',
         booking,
+        sheets_sync: sheetsSyncResult,
       },
       { status: 201 }
     );

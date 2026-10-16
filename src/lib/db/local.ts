@@ -16,10 +16,14 @@ import { BUSINESS_CONFIG } from '@/config/business';
 // Global in-memory cache to ensure serverless reliability even if filesystem is restricted
 declare global {
   var __RECHARGE_ROOM_LOCAL_BOOKINGS__: Booking[] | undefined;
+  var __RECHARGE_ROOM_SETTINGS__: Record<string, string> | undefined;
 }
 
 if (!globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__) {
   globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ = [];
+}
+if (!globalThis.__RECHARGE_ROOM_SETTINGS__) {
+  globalThis.__RECHARGE_ROOM_SETTINGS__ = {};
 }
 
 function getStoragePaths() {
@@ -57,7 +61,7 @@ function ensureDbFile(): string | null {
   }
 }
 
-function readData(): { bookings: Booking[] } {
+function readData(): { bookings: Booking[]; settings?: Record<string, string> } {
   const dbFile = ensureDbFile();
   if (dbFile) {
     try {
@@ -65,17 +69,32 @@ function readData(): { bookings: Booking[] } {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed.bookings)) {
         globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ = parsed.bookings;
-        return parsed;
       }
+      if (parsed.settings && typeof parsed.settings === 'object') {
+        globalThis.__RECHARGE_ROOM_SETTINGS__ = {
+          ...globalThis.__RECHARGE_ROOM_SETTINGS__,
+          ...parsed.settings,
+        };
+      }
+      return {
+        bookings: globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ || [],
+        settings: globalThis.__RECHARGE_ROOM_SETTINGS__ || {},
+      };
     } catch (err) {
       console.warn('[LocalDB] Error reading local-db.json, using in-memory store:', err);
     }
   }
-  return { bookings: globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ || [] };
+  return {
+    bookings: globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ || [],
+    settings: globalThis.__RECHARGE_ROOM_SETTINGS__ || {},
+  };
 }
 
-function writeData(data: { bookings: Booking[] }): void {
+function writeData(data: { bookings: Booking[]; settings?: Record<string, string> }): void {
   globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ = data.bookings;
+  if (data.settings) {
+    globalThis.__RECHARGE_ROOM_SETTINGS__ = data.settings;
+  }
   const dbFile = ensureDbFile();
   if (dbFile) {
     try {
@@ -307,6 +326,22 @@ export class LocalBookingRepository implements BookingRepository {
 
     const unsyncedCount = bookings.filter((b) => !b.synced_to_sheets).length;
 
+    const webhookUrl =
+      (await this.getSetting('google_sheet_webhook_url')) ||
+      process.env.GOOGLE_SHEET_WEBHOOK_URL ||
+      null;
+
+    const hasServiceAccount = !!(
+      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
+      process.env.GOOGLE_PRIVATE_KEY
+    );
+
+    const configuredMethod: 'webhook' | 'service_account' | 'none' = webhookUrl
+      ? 'webhook'
+      : hasServiceAccount
+      ? 'service_account'
+      : 'none';
+
     return {
       todayConfirmed,
       upcomingBookings,
@@ -318,12 +353,24 @@ export class LocalBookingRepository implements BookingRepository {
         total: bookings.length,
         synced: bookings.length - unsyncedCount,
         pending: unsyncedCount,
-        isConfigured: !!(
-          process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
-          process.env.GOOGLE_PRIVATE_KEY &&
-          process.env.GOOGLE_SHEET_ID
-        ),
+        isConfigured: configuredMethod !== 'none',
+        configuredMethod,
+        webhookUrl: webhookUrl ? `${webhookUrl.substring(0, 35)}...` : null,
       },
     };
+  }
+
+  async getSetting(key: string): Promise<string | null> {
+    const { settings } = readData();
+    return settings?.[key] || globalThis.__RECHARGE_ROOM_SETTINGS__?.[key] || null;
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    return acquireLock(async () => {
+      const data = readData();
+      const updatedSettings = { ...(data.settings || {}), [key]: value };
+      globalThis.__RECHARGE_ROOM_SETTINGS__ = updatedSettings;
+      writeData({ ...data, settings: updatedSettings });
+    });
   }
 }

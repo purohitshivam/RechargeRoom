@@ -56,6 +56,8 @@ export interface AdminDashboardMetrics {
     synced: number;
     pending: number;
     isConfigured: boolean;
+    configuredMethod?: 'webhook' | 'service_account' | 'none';
+    webhookUrl?: string | null;
     lastSync?: string | null;
   };
 }

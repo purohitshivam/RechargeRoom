@@ -24,6 +24,23 @@ const HEADERS = [
   'Last Updated At',
 ];
 
+export async function getEffectiveWebhookUrl(): Promise<string | null> {
+  try {
+    const repo = getRepository();
+    const custom = await repo.getSetting('google_sheet_webhook_url');
+    if (custom && custom.trim().length > 0) {
+      return custom.trim();
+    }
+  } catch (_) {}
+
+  const envUrl = process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim();
+  }
+
+  return null;
+}
+
 function getSheetsClient() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   let privateKey = process.env.GOOGLE_PRIVATE_KEY;
@@ -106,6 +123,32 @@ function mapBookingToRow(b: Booking): any[] {
 }
 
 /**
+ * Validates a Google Apps Script Web App URL.
+ */
+export function validateWebhookUrl(url: string): { valid: boolean; error?: string } {
+  if (!url || typeof url !== 'string') {
+    return { valid: false, error: 'Webhook URL cannot be empty.' };
+  }
+  const clean = url.trim();
+  if (!clean.startsWith('https://script.google.com/')) {
+    return { valid: false, error: 'URL must start with https://script.google.com/' };
+  }
+  if (clean.includes('/edit')) {
+    return {
+      valid: false,
+      error: 'You pasted the script editor link ending in /edit. Please click Deploy > New deployment to get the Web App URL (ends in /exec).',
+    };
+  }
+  if (clean.endsWith('/dev')) {
+    return {
+      valid: false,
+      error: 'You pasted the /dev link which requires developer login. Please use the Web App deployment link ending in /exec.',
+    };
+  }
+  return { valid: true };
+}
+
+/**
  * Idempotently syncs a single booking to Google Sheets.
  * Supports both direct Webhook URL (instant 0-credential setup)
  * and Google Cloud Service Account API.
@@ -118,20 +161,54 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
   const repo = getRepository();
 
   // 1. Try Google Apps Script Webhook if configured (Fastest, zero-credential setup)
-  const webhookUrl = process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  const webhookUrl = await getEffectiveWebhookUrl();
   if (webhookUrl) {
+    const validation = validateWebhookUrl(webhookUrl);
+    if (!validation.valid) {
+      console.warn(`[Sheets Sync Validation]: ${validation.error}`);
+      return { success: false, error: validation.error };
+    }
+
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(booking),
+        signal: controller.signal,
       });
-      if (res.ok) {
+      clearTimeout(timeoutId);
+
+      const resText = await res.text();
+      let resJson: any = null;
+      try {
+        resJson = JSON.parse(resText);
+      } catch (_) {}
+
+      if (resText.includes('accounts.google.com') || resText.includes('ServiceLogin')) {
+        const errorMsg = 'Google Apps Script requires login. In Apps Script, set "Who has access" to "Anyone" and redeploy.';
+        console.warn(`[Sheets Webhook Error]: ${errorMsg}`);
+        return { success: false, error: errorMsg };
+      }
+
+      if (res.ok && resJson?.success !== false) {
         await repo.markSyncedToSheets(booking.id, true);
-        return { success: true, message: 'Synced to Google Sheet via webhook.' };
+        return {
+          success: true,
+          message: `Synced to Google Sheet via webhook (${resJson?.action || 'saved'} row ${resJson?.row || ''}).`,
+        };
+      } else {
+        const errorMsg = resJson?.error || `Webhook responded with HTTP ${res.status}`;
+        console.warn(`[Sheets Webhook Sync Notice]:`, errorMsg);
+        return { success: false, error: errorMsg };
       }
     } catch (err: any) {
-      console.warn('[Google Sheet Webhook Sync Notice]:', err?.message || err);
+      const isTimeout = err?.name === 'AbortError';
+      const msg = isTimeout ? 'Webhook request timed out after 15s.' : err?.message || 'Network error reaching webhook.';
+      console.warn('[Google Sheet Webhook Sync Notice]:', msg);
+      return { success: false, error: msg };
     }
   }
 
@@ -140,7 +217,7 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
   if (!client) {
     return {
       success: false,
-      error: 'Google Sheets sync pending. Share sheet with service account or configure GOOGLE_SHEET_WEBHOOK_URL.',
+      error: 'Google Sheets sync pending. Please configure the Google Apps Script Webhook URL in Admin or set GOOGLE_SHEET_WEBHOOK_URL.',
     };
   }
 
@@ -197,6 +274,109 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
       error: err?.message || 'Failed to sync with Google Sheets API',
     };
   }
+}
+
+/**
+ * Diagnostic tool to test connection to Google Sheets.
+ */
+export async function testSheetsConnection(): Promise<{
+  success: boolean;
+  message: string;
+  method: 'webhook' | 'service_account' | 'none';
+  details?: any;
+}> {
+  const webhookUrl = await getEffectiveWebhookUrl();
+  if (webhookUrl) {
+    const validation = validateWebhookUrl(webhookUrl);
+    if (!validation.valid) {
+      return {
+        success: false,
+        method: 'webhook',
+        message: validation.error || 'Invalid webhook URL',
+      };
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ping',
+          is_test: true,
+          id: `TEST-${Date.now().toString().slice(-6)}`,
+          customer_name: 'Test Ping',
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const resText = await res.text();
+      let resJson: any = null;
+      try {
+        resJson = JSON.parse(resText);
+      } catch (_) {}
+
+      if (resText.includes('accounts.google.com') || resText.includes('ServiceLogin')) {
+        return {
+          success: false,
+          method: 'webhook',
+          message: 'Google login required. Please re-deploy your Apps Script with "Who has access: Anyone".',
+        };
+      }
+
+      if (res.ok && resJson?.success !== false) {
+        return {
+          success: true,
+          method: 'webhook',
+          message: 'Google Apps Script Webhook is live and responding perfectly!',
+          details: resJson,
+        };
+      }
+
+      return {
+        success: false,
+        method: 'webhook',
+        message: resJson?.error || `Webhook responded with HTTP status ${res.status}: ${resText.slice(0, 100)}`,
+      };
+    } catch (err: any) {
+      const isTimeout = err?.name === 'AbortError';
+      return {
+        success: false,
+        method: 'webhook',
+        message: isTimeout
+          ? 'Webhook test timed out after 15s. Check network or Apps Script deployment.'
+          : err?.message || 'Failed to connect to webhook URL.',
+      };
+    }
+  }
+
+  const client = getSheetsClient();
+  if (client) {
+    try {
+      const { sheets, sheetId } = client;
+      const tabName = await ensureSheetAndHeaders(sheets, sheetId);
+      return {
+        success: true,
+        method: 'service_account',
+        message: `Successfully connected to Google Sheet (Tab: "${tabName}").`,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        method: 'service_account',
+        message: `Service Account API error: ${err?.message || err}`,
+      };
+    }
+  }
+
+  return {
+    success: false,
+    method: 'none',
+    message: 'No Google Sheets connection is configured yet. Follow the 60-second Apps Script setup.',
+  };
 }
 
 /**

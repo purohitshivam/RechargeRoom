@@ -214,6 +214,22 @@ export class SupabaseBookingRepository implements BookingRepository {
 
     const unsyncedCount = bookings.filter((b) => !b.synced_to_sheets).length;
 
+    const webhookUrl =
+      (await this.getSetting('google_sheet_webhook_url')) ||
+      process.env.GOOGLE_SHEET_WEBHOOK_URL ||
+      null;
+
+    const hasServiceAccount = !!(
+      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
+      process.env.GOOGLE_PRIVATE_KEY
+    );
+
+    const configuredMethod: 'webhook' | 'service_account' | 'none' = webhookUrl
+      ? 'webhook'
+      : hasServiceAccount
+      ? 'service_account'
+      : 'none';
+
     return {
       todayConfirmed,
       upcomingBookings,
@@ -225,13 +241,25 @@ export class SupabaseBookingRepository implements BookingRepository {
         total: bookings.length,
         synced: bookings.length - unsyncedCount,
         pending: unsyncedCount,
-        isConfigured: !!(
-          process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
-          process.env.GOOGLE_PRIVATE_KEY &&
-          process.env.GOOGLE_SHEET_ID
-        ),
+        isConfigured: configuredMethod !== 'none',
+        configuredMethod,
+        webhookUrl: webhookUrl ? `${webhookUrl.substring(0, 35)}...` : null,
       },
     };
+  }
+
+  async getSetting(key: string): Promise<string | null> {
+    if (!globalThis.__RECHARGE_ROOM_SETTINGS__) {
+      globalThis.__RECHARGE_ROOM_SETTINGS__ = {};
+    }
+    return globalThis.__RECHARGE_ROOM_SETTINGS__[key] || null;
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    if (!globalThis.__RECHARGE_ROOM_SETTINGS__) {
+      globalThis.__RECHARGE_ROOM_SETTINGS__ = {};
+    }
+    globalThis.__RECHARGE_ROOM_SETTINGS__[key] = value;
   }
 
   private mapRowToBooking(row: any): Booking {
