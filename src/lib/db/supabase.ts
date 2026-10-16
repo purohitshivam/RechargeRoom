@@ -215,9 +215,9 @@ export class SupabaseBookingRepository implements BookingRepository {
     const unsyncedCount = bookings.filter((b) => !b.synced_to_sheets).length;
 
     const webhookUrl =
+      CONTACT_CONFIG.defaultWebhookUrl ||
       process.env.GOOGLE_SHEET_WEBHOOK_URL ||
       (await this.getSetting('google_sheet_webhook_url')) ||
-      CONTACT_CONFIG.defaultWebhookUrl ||
       null;
 
     const hasServiceAccount = !!(

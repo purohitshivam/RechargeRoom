@@ -25,11 +25,12 @@ const HEADERS = [
 ];
 
 export async function getEffectiveWebhookUrl(): Promise<string | null> {
-  const envUrl = process.env.GOOGLE_SHEET_WEBHOOK_URL;
-  if (envUrl && envUrl.trim().length > 0) {
-    return envUrl.trim();
+  // 1. Authoritative verified webhook URL for Recharge Room
+  if (CONTACT_CONFIG.defaultWebhookUrl && CONTACT_CONFIG.defaultWebhookUrl.trim().length > 0) {
+    return CONTACT_CONFIG.defaultWebhookUrl.trim();
   }
 
+  // 2. Custom setting override from admin
   try {
     const repo = getRepository();
     const custom = await repo.getSetting('google_sheet_webhook_url');
@@ -38,8 +39,10 @@ export async function getEffectiveWebhookUrl(): Promise<string | null> {
     }
   } catch (_) {}
 
-  if (CONTACT_CONFIG.defaultWebhookUrl) {
-    return CONTACT_CONFIG.defaultWebhookUrl;
+  // 3. Environment variable fallback
+  const envUrl = process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim();
   }
 
   return null;
