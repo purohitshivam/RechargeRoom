@@ -202,3 +202,58 @@ test('generateIcsContent produces valid standard calendar invite', () => {
   assert.ok(ics.includes('END:VEVENT'));
   assert.ok(ics.includes('END:VCALENDAR'));
 });
+
+test('LocalBookingRepository applies RRMU50 coupon code correctly', async () => {
+  const repo = new LocalBookingRepository();
+  const testDate = '2026-11-20';
+
+  // Booking with valid coupon RRMU50
+  const result = await repo.createBooking({
+    booking_date: testDate,
+    start_time: '16:00',
+    customer_name: 'Coupon Customer',
+    customer_phone: '9876543210',
+    customer_type: 'student',
+    coupon_code: 'RRMU50',
+    discount_amount: 50,
+  });
+
+  assert.equal(result.success, true);
+  assert.ok(result.booking);
+  assert.equal(result.booking.amount, 199, 'Amount should be 199 after RRMU50 discount');
+  assert.equal(result.booking.coupon_code, 'RRMU50');
+  assert.equal(result.booking.discount_amount, 50);
+
+  // Booking without coupon has standard rate 249
+  const resultStandard = await repo.createBooking({
+    booking_date: testDate,
+    start_time: '16:15',
+    customer_name: 'Standard Customer',
+    customer_phone: '9876543210',
+    customer_type: 'employee',
+  });
+
+  assert.equal(resultStandard.success, true);
+  assert.ok(resultStandard.booking);
+  assert.equal(resultStandard.booking.amount, 249, 'Standard booking must be 249');
+  assert.equal(resultStandard.booking.coupon_code, undefined);
+});
+
+test('Booking creation succeeds with only Name and Phone (Email and Org optional)', async () => {
+  const repo = new LocalBookingRepository();
+  const testDate = '2026-11-20';
+
+  const result = await repo.createBooking({
+    booking_date: testDate,
+    start_time: '16:30',
+    customer_name: 'Minimal Info Customer',
+    customer_phone: '9876543210',
+    customer_type: 'student',
+  });
+
+  assert.equal(result.success, true);
+  assert.ok(result.booking);
+  assert.equal(result.booking.customer_name, 'Minimal Info Customer');
+  assert.equal(result.booking.customer_phone, '9876543210');
+  assert.equal(result.booking.customer_email, '');
+});

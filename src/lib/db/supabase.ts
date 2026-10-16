@@ -47,6 +47,8 @@ export class SupabaseBookingRepository implements BookingRepository {
     const bookingId = generateBookingId(input.booking_date);
     const endTime = addMinutesToTime(input.start_time, BUSINESS_CONFIG.durationMinutes);
 
+    const finalAmount = input.coupon_code === 'RRMU50' ? 199 : BUSINESS_CONFIG.priceInr;
+
     // Call atomic Postgres stored procedure
     const { data, error } = await this.client.rpc('create_booking_atomic', {
       p_id: bookingId,
@@ -55,12 +57,12 @@ export class SupabaseBookingRepository implements BookingRepository {
       p_end_time: endTime,
       p_duration_minutes: BUSINESS_CONFIG.durationMinutes,
       p_customer_name: input.customer_name.trim(),
-      p_customer_email: input.customer_email.trim().toLowerCase(),
+      p_customer_email: input.customer_email ? input.customer_email.trim().toLowerCase() : '',
       p_customer_phone: input.customer_phone.trim(),
       p_customer_type: input.customer_type,
-      p_organization_unit: input.organization_unit.trim(),
+      p_organization_unit: input.organization_unit ? input.organization_unit.trim() : '',
       p_notes: input.notes?.trim() || null,
-      p_amount: BUSINESS_CONFIG.priceInr,
+      p_amount: finalAmount,
     });
 
     if (error) {
@@ -281,6 +283,8 @@ export class SupabaseBookingRepository implements BookingRepository {
       booking_status: row.booking_status,
       payment_status: row.payment_status,
       amount: Number(row.amount) || 249,
+      coupon_code: row.coupon_code || undefined,
+      discount_amount: row.discount_amount ? Number(row.discount_amount) : undefined,
       cancellation_reason: row.cancellation_reason || undefined,
       synced_to_sheets: Boolean(row.synced_to_sheets),
       synced_at: row.synced_at,

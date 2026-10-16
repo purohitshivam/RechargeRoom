@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRepository } from '@/lib/db';
 import { CreateBookingInput, CustomerType } from '@/types';
-import { syncBookingToSheets } from '@/lib/sheets';
+import { syncBookingToSheets, fetchLiveBookedSlotsFromGoogleSheet } from '@/lib/sheets';
 import { isAuthenticatedAdmin } from '@/lib/auth';
 
 function validateMobileNumber(phone: string): boolean {
@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       customer_type,
       organization_unit,
       notes,
+      coupon_code,
     } = body;
 
     // 1. Validation
@@ -50,8 +51,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!customer_email || !validateEmail(customer_email)) {
-      return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
+    const emailTrimmed = customer_email ? customer_email.trim().toLowerCase() : '';
+    if (emailTrimmed && !validateEmail(emailTrimmed)) {
+      return NextResponse.json({ error: 'Please enter a valid email address or leave it blank.' }, { status: 400 });
     }
 
     if (!['student', 'employee'].includes(customer_type)) {
@@ -61,22 +63,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!organization_unit || organization_unit.trim().length < 2) {
-      return NextResponse.json(
-        { error: 'Please enter your college name, company, or department.' },
-        { status: 400 }
-      );
+    // Coupon Code Validation (strictly RRMU50 only)
+    let validCouponCode: string | undefined = undefined;
+    let discountAmount = 0;
+    if (coupon_code && typeof coupon_code === 'string' && coupon_code.trim().length > 0) {
+      const cleanCoupon = coupon_code.trim().toUpperCase();
+      if (cleanCoupon === 'RRMU50') {
+        validCouponCode = 'RRMU50';
+        discountAmount = 50;
+      } else {
+        return NextResponse.json(
+          { error: "Invalid coupon code. Only 'RRMU50' is accepted." },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Double-booking collision check against live Google Sheet
+    try {
+      const sheetBookedSlots = await fetchLiveBookedSlotsFromGoogleSheet(booking_date);
+      if (sheetBookedSlots.includes(start_time)) {
+        return NextResponse.json(
+          { error: 'This 15-minute slot was just booked by another customer. Please choose a different time.' },
+          { status: 409 }
+        );
+      }
+    } catch (checkErr) {
+      console.warn('[Collision Check Notice] Google Sheet check bypassed:', checkErr);
     }
 
     const input: CreateBookingInput = {
       booking_date,
       start_time,
       customer_name: customer_name.trim(),
-      customer_email: customer_email.trim().toLowerCase(),
+      customer_email: emailTrimmed,
       customer_phone: customer_phone.trim(),
       customer_type: customer_type as CustomerType,
-      organization_unit: organization_unit.trim(),
+      organization_unit: organization_unit?.trim() || '',
       notes: notes?.trim() || undefined,
+      coupon_code: validCouponCode,
+      discount_amount: discountAmount > 0 ? discountAmount : undefined,
     };
 
     const repo = getRepository();

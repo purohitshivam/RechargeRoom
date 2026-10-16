@@ -66,9 +66,18 @@ export function ConfirmationCard({ booking }: ConfirmationCardProps) {
           </span>
         </div>
 
-        <div className="flex justify-between py-1">
+        {booking.coupon_code && (
+          <div className="flex justify-between py-1 items-center">
+            <span className="text-emerald-700 font-medium">Coupon Applied</span>
+            <span className="font-mono text-xs text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 border border-emerald-200">
+              {booking.coupon_code} (-₹{booking.discount_amount || 50})
+            </span>
+          </div>
+        )}
+
+        <div className="flex justify-between py-1 items-baseline">
           <span className="text-neutral-500">Amount Due</span>
-          <span className="font-editorial text-lg text-neutral-950 font-normal">
+          <span className="font-sans text-xl text-neutral-950 font-bold">
             {BUSINESS_CONFIG.currencySymbol}{booking.amount}
           </span>
         </div>

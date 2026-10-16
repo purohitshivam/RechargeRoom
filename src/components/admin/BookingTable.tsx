@@ -33,8 +33,9 @@ export function BookingTable({
       b.id.toLowerCase().includes(q) ||
       b.customer_name.toLowerCase().includes(q) ||
       b.customer_phone.toLowerCase().includes(q) ||
-      b.customer_email.toLowerCase().includes(q) ||
-      b.organization_unit.toLowerCase().includes(q);
+      (b.customer_email || '').toLowerCase().includes(q) ||
+      (b.organization_unit || '').toLowerCase().includes(q) ||
+      (b.coupon_code || '').toLowerCase().includes(q);
 
     const matchesStatus = statusFilter === 'all' || b.booking_status === statusFilter;
     const matchesPayment = paymentFilter === 'all' || b.payment_status === paymentFilter;
@@ -139,7 +140,7 @@ export function BookingTable({
                         <td className="py-3.5 px-4">
                           <div className="font-medium text-neutral-900">{b.customer_name}</div>
                           <div className="font-mono text-neutral-500 text-[11px]">
-                            {b.customer_phone} · {b.customer_email}
+                            {b.customer_phone}{b.customer_email ? ` · ${b.customer_email}` : ''}
                           </div>
                           {b.notes && (
                             <div className="text-[11px] text-neutral-400 italic mt-0.5">
@@ -152,9 +153,11 @@ export function BookingTable({
                           <span className="font-mono uppercase text-[10px] px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 text-neutral-700">
                             {b.customer_type}
                           </span>
-                          <div className="text-neutral-600 mt-1 truncate max-w-[180px]">
-                            {b.organization_unit}
-                          </div>
+                          {b.organization_unit && (
+                            <div className="text-neutral-600 mt-1 truncate max-w-[180px]">
+                              {b.organization_unit}
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3.5 px-4">
@@ -172,10 +175,15 @@ export function BookingTable({
                         </td>
 
                         <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-editorial text-sm font-normal text-neutral-950">
                               {BUSINESS_CONFIG.currencySymbol}{b.amount}
                             </span>
+                            {b.coupon_code && (
+                              <span className="text-[9px] font-mono font-bold uppercase px-1 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                {b.coupon_code}
+                              </span>
+                            )}
                             <span
                               className={`text-[10px] font-mono uppercase px-1.5 py-0.5 border ${
                                 b.payment_status === 'paid'
@@ -285,11 +293,13 @@ export function BookingTable({
                     <div className="space-y-1 text-xs text-neutral-600 font-mono pt-1 border-t border-neutral-100">
                       <div className="flex items-center gap-2">
                         <Phone className="w-3.5 h-3.5 text-neutral-400" />
-                        <span>{b.customer_phone}</span>
+                        <span>{b.customer_phone}{b.customer_email ? ` · ${b.customer_email}` : ''}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Building className="w-3.5 h-3.5 text-neutral-400" />
-                        <span className="truncate">{b.customer_type} · {b.organization_unit}</span>
+                        <span className="truncate">
+                          {b.customer_type}{b.organization_unit ? ` · ${b.organization_unit}` : ''}
+                        </span>
                       </div>
                     </div>
 
@@ -300,9 +310,16 @@ export function BookingTable({
                     )}
 
                     <div className="pt-2 flex items-center justify-between gap-2 border-t border-neutral-100">
-                      <span className="font-editorial text-base text-neutral-950">
-                        {BUSINESS_CONFIG.currencySymbol}{b.amount}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-editorial text-base text-neutral-950">
+                          {BUSINESS_CONFIG.currencySymbol}{b.amount}
+                        </span>
+                        {b.coupon_code && (
+                          <span className="text-[9px] font-mono font-bold uppercase px-1 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {b.coupon_code}
+                          </span>
+                        )}
+                      </div>
 
                       <div className="flex items-center gap-1.5">
                         {b.booking_status === 'confirmed' && (

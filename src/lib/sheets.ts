@@ -21,6 +21,7 @@ const HEADERS = [
   'Booking Status',
   'Payment Status',
   'Amount (INR)',
+  'Coupon Code',
   'Last Updated At',
 ];
 
@@ -90,14 +91,14 @@ async function ensureSheetAndHeaders(sheets: any, sheetId: string): Promise<stri
 
   const headerCheck = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
-    range: `'${targetTab}'!A1:P1`,
+    range: `'${targetTab}'!A1:Q1`,
   });
 
   const existingHeaders = headerCheck.data.values;
   if (!existingHeaders || existingHeaders.length === 0 || existingHeaders[0].length === 0) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `'${targetTab}'!A1:P1`,
+      range: `'${targetTab}'!A1:Q1`,
       valueInputOption: 'RAW',
       requestBody: {
         values: [HEADERS],
@@ -118,13 +119,14 @@ function mapBookingToRow(b: Booking): any[] {
     b.duration_minutes,
     b.customer_name,
     b.customer_phone,
-    b.customer_email,
+    b.customer_email || '',
     b.customer_type,
-    b.organization_unit,
+    b.organization_unit || '',
     b.notes || '',
     b.booking_status.toUpperCase(),
     b.payment_status.toUpperCase(),
     b.amount,
+    b.coupon_code || 'NONE',
     b.updated_at,
   ];
 }
@@ -180,6 +182,15 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
+      // Prepare payload with explicit coupon code and note redundancy
+      const payload = {
+        ...booking,
+        coupon_code: booking.coupon_code || 'NONE',
+        notes: booking.notes
+          ? `${booking.notes} ${booking.coupon_code ? `[Coupon: ${booking.coupon_code}]` : ''}`.trim()
+          : (booking.coupon_code ? `Coupon: ${booking.coupon_code}` : ''),
+      };
+
       // Google Apps Script requires browser-like headers to prevent 401 on datacenter IPs.
       // Additionally, Google Apps Script returns 302 Found when doPost(e) has executed.
       // Setting redirect: 'manual' prevents Node fetch from transforming the POST into a GET on redirect.
@@ -191,7 +202,7 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': '*/*',
         },
-        body: JSON.stringify(booking),
+        body: JSON.stringify(payload),
         redirect: 'manual',
         signal: controller.signal,
       });
@@ -219,6 +230,7 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
         }
 
         await repo.markSyncedToSheets(booking.id, true);
+        invalidateSheetCache();
         return {
           success: true,
           message: `Synced to Google Sheet via webhook (${followedJson?.action || 'saved'} row ${followedJson?.row || ''}).`,
@@ -239,6 +251,7 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
 
       if (res.ok && resJson?.success !== false) {
         await repo.markSyncedToSheets(booking.id, true);
+        invalidateSheetCache();
         return {
           success: true,
           message: `Synced to Google Sheet via webhook (${resJson?.action || 'saved'} row ${resJson?.row || ''}).`,
@@ -289,18 +302,19 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
     if (existingRowIndex > 0) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
-        range: `'${tabName}'!A${existingRowIndex}:P${existingRowIndex}`,
+        range: `'${tabName}'!A${existingRowIndex}:Q${existingRowIndex}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: [rowData],
         },
       });
       await repo.markSyncedToSheets(booking.id, true);
+      invalidateSheetCache();
       return { success: true, message: `Updated row ${existingRowIndex} in Google Sheet.` };
     } else {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `'${tabName}'!A:P`,
+        range: `'${tabName}'!A:Q`,
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
@@ -308,6 +322,7 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
         },
       });
       await repo.markSyncedToSheets(booking.id, true);
+      invalidateSheetCache();
       return { success: true, message: 'Appended new booking row to Google Sheet.' };
     }
   } catch (err: any) {
@@ -469,4 +484,134 @@ export async function syncAllPendingBookings(): Promise<{
     failed,
     errors,
   };
+}
+
+// ---------------------------------------------------------------------------
+// LIVE GOOGLE SHEET AVAILABILITY SYNCHRONIZATION
+// Guarantees zero multi-booking across distributed serverless instances
+// ---------------------------------------------------------------------------
+
+interface SheetCache {
+  timestamp: number;
+  csv: string;
+}
+
+let cachedSheetData: SheetCache | null = null;
+const CACHE_TTL_MS = 3000; // 3 seconds in-memory cache to prevent Google rate limits
+
+export function invalidateSheetCache() {
+  cachedSheetData = null;
+}
+
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+/**
+ * Fetches confirmed booked start times for a specific date directly from Google Sheets.
+ * This guarantees that across serverless instances and multiple visitors,
+ * any slot present in the Google Sheet is immediately unavailable to everyone.
+ */
+export async function fetchLiveBookedSlotsFromGoogleSheet(dateStr: string): Promise<string[]> {
+  try {
+    const sheetId = process.env.GOOGLE_SHEET_ID || DEFAULT_SHEET_ID;
+    if (!sheetId) return [];
+
+    const now = Date.now();
+    let csv = '';
+
+    if (cachedSheetData && now - cachedSheetData.timestamp < CACHE_TTL_MS) {
+      csv = cachedSheetData.csv;
+    } else {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/csv,*/*',
+        },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        console.warn(`[Live Sheet Query] Google Sheets CSV fetch returned HTTP ${res.status}`);
+        return [];
+      }
+
+      csv = await res.text();
+      cachedSheetData = { timestamp: now, csv };
+    }
+
+    if (!csv || !csv.includes(',')) {
+      return [];
+    }
+
+    const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length <= 1) return [];
+
+    const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase().trim());
+    const dateIdx = headers.findIndex((h) => h.includes('booking date') || h === 'date');
+    const timeIdx = headers.findIndex((h) => h.includes('start time') || h === 'time');
+    const statusIdx = headers.findIndex((h) => h.includes('booking status') || h === 'status');
+
+    if (dateIdx === -1 || timeIdx === -1) {
+      console.warn('[Live Sheet Query] Missing date or time columns in Google Sheet CSV headers:', headers);
+      return [];
+    }
+
+    const bookedSlots: string[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const row = parseCSVLine(lines[i]);
+      if (row.length <= Math.max(dateIdx, timeIdx)) continue;
+
+      const rowDate = row[dateIdx]?.replace(/^["']|["']$/g, '').trim();
+      const rawTime = row[timeIdx]?.replace(/^["']|["']$/g, '').trim();
+      const rowStatus =
+        statusIdx !== -1
+          ? row[statusIdx]?.replace(/^["']|["']$/g, '').trim().toUpperCase()
+          : 'CONFIRMED';
+
+      // Match target date and non-cancelled status
+      if (rowDate === dateStr && rowStatus !== 'CANCELLED') {
+        // Normalize time to HH:MM (e.g. "12:00:00" -> "12:00", "9:45" -> "09:45")
+        const match = rawTime.match(/^(\d{1,2}):(\d{2})/);
+        if (match) {
+          const hh = match[1].padStart(2, '0');
+          const mm = match[2];
+          bookedSlots.push(`${hh}:${mm}`);
+        }
+      }
+    }
+
+    return Array.from(new Set(bookedSlots));
+  } catch (err: any) {
+    console.warn('[Live Sheet Query Notice]: Could not fetch live Google Sheet bookings:', err?.message || err);
+    return [];
+  }
 }

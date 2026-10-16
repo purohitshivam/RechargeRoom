@@ -195,6 +195,9 @@ export class LocalBookingRepository implements BookingRepository {
       }
 
       // 3. Create booking
+      const discount = input.coupon_code === 'RRMU50' ? 50 : (input.discount_amount || 0);
+      const finalAmount = input.coupon_code === 'RRMU50' ? 199 : BUSINESS_CONFIG.priceInr;
+
       const newBooking: Booking = {
         id: generateBookingId(input.booking_date),
         created_at: new Date().toISOString(),
@@ -204,14 +207,16 @@ export class LocalBookingRepository implements BookingRepository {
         end_time: addMinutesToTime(input.start_time, BUSINESS_CONFIG.durationMinutes),
         duration_minutes: BUSINESS_CONFIG.durationMinutes,
         customer_name: input.customer_name.trim(),
-        customer_email: input.customer_email.trim().toLowerCase(),
+        customer_email: input.customer_email ? input.customer_email.trim().toLowerCase() : '',
         customer_phone: input.customer_phone.trim(),
         customer_type: input.customer_type,
-        organization_unit: input.organization_unit.trim(),
+        organization_unit: input.organization_unit ? input.organization_unit.trim() : '',
         notes: input.notes?.trim() || undefined,
         booking_status: 'confirmed',
         payment_status: 'pending',
-        amount: BUSINESS_CONFIG.priceInr,
+        amount: finalAmount,
+        coupon_code: input.coupon_code,
+        discount_amount: discount > 0 ? discount : undefined,
         synced_to_sheets: false,
         synced_at: null,
       };

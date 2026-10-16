@@ -19,6 +19,8 @@ export interface Booking {
   booking_status: BookingStatus;
   payment_status: PaymentStatus;
   amount: number;
+  coupon_code?: string;
+  discount_amount?: number;
   cancellation_reason?: string;
   synced_to_sheets: boolean;
   synced_at?: string | null;
@@ -37,11 +39,13 @@ export interface CreateBookingInput {
   booking_date: string;
   start_time: string;
   customer_name: string;
-  customer_email: string;
   customer_phone: string;
+  customer_email?: string;
   customer_type: CustomerType;
-  organization_unit: string;
+  organization_unit?: string;
   notes?: string;
+  coupon_code?: string;
+  discount_amount?: number;
 }
 
 export interface AdminDashboardMetrics {

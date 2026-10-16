@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { BUSINESS_CONFIG, CONTACT_CONFIG } from '@/config/business';
 import { getAvailableDates } from '@/lib/utils';
@@ -21,7 +21,11 @@ export default function BookPage() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(true);
 
-  // Form details
+  // Coupon code state
+  const [couponCode, setCouponCode] = useState<string>('');
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+
+  // Form details - Streamlined: Name and Mobile mandatory, Email optional
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -36,29 +40,62 @@ export default function BookPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
 
+  // Active pricing based on applied coupon
+  const currentPrice = couponCode ? 199 : BUSINESS_CONFIG.priceInr;
+
   // Load availability whenever selected date changes
-  const fetchSlots = async (dateStr: string) => {
-    setIsLoadingSlots(true);
-    setSelectedSlot(null);
+  const fetchSlots = useCallback(async (dateStr: string, isSilent = false) => {
+    if (!isSilent) {
+      setIsLoadingSlots(true);
+      setSelectedSlot(null);
+    }
     try {
       const res = await fetch(`/api/availability?date=${dateStr}`);
       const data = await res.json();
-      if (res.ok && data.slots) {
+      if (res.ok && Array.isArray(data.slots)) {
         setSlots(data.slots);
+
+        // Real-time conflict protection: If currently selected slot is now taken, reset and alert
+        if (selectedSlot) {
+          const matchingSlot = data.slots.find((s: TimeSlot) => s.time === selectedSlot);
+          if (matchingSlot && !matchingSlot.available) {
+            setSelectedSlot(null);
+            setSubmitError(`The ${selectedSlot} slot was just reserved by another visitor. Please select an available slot.`);
+          }
+        }
       } else {
         setSlots([]);
       }
     } catch (err) {
       console.error('Failed to fetch availability:', err);
-      setSlots([]);
+      if (!isSilent) setSlots([]);
     } finally {
-      setIsLoadingSlots(false);
+      if (!isSilent) setIsLoadingSlots(false);
     }
-  };
+  }, [selectedSlot]);
 
+  // Initial fetch when date changes
   useEffect(() => {
-    fetchSlots(selectedDate);
-  }, [selectedDate]);
+    fetchSlots(selectedDate, false);
+  }, [selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Multi-user real-time polling: Keep slot availability synchronized every 15s + on window focus
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      fetchSlots(selectedDate, true);
+    }, 15000);
+
+    const handleWindowFocus = () => {
+      fetchSlots(selectedDate, true);
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [selectedDate, fetchSlots]);
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -71,6 +108,29 @@ export default function BookPage() {
     }
   };
 
+  const handleApplyCoupon = (code: string) => {
+    const clean = code.trim().toUpperCase();
+    if (clean === 'RRMU50') {
+      setCouponCode('RRMU50');
+      setDiscountAmount(50);
+      return {
+        success: true,
+        message: 'Coupon RRMU50 verified! You save ₹50 on this session.',
+        discount: 50,
+      };
+    }
+    return {
+      success: false,
+      message: "Invalid coupon code. Only 'RRMU50' is accepted.",
+    };
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponCode('');
+    setDiscountAmount(0);
+  };
+
+  // Only Name and Mobile Number are mandatory. Email is optional.
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
 
@@ -83,15 +143,9 @@ export default function BookPage() {
       errors.phone = 'Please provide a valid 10-digit mobile number.';
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-      errors.email = 'Please provide a valid email address.';
-    }
-
-    if (!formData.organizationUnit.trim() || formData.organizationUnit.trim().length < 2) {
-      errors.organizationUnit =
-        formData.customerType === 'student'
-          ? 'Please enter your college name or department.'
-          : 'Please enter your department or workplace unit.';
+    // Email is strictly optional; validate format only if provided
+    if (formData.email.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.email = 'Please provide a valid email address or leave blank.';
     }
 
     setFormErrors(errors);
@@ -107,7 +161,7 @@ export default function BookPage() {
     }
 
     if (!validateForm()) {
-      setSubmitError('Please complete all required fields correctly.');
+      setSubmitError('Please complete your name and mobile number.');
       return;
     }
 
@@ -120,12 +174,14 @@ export default function BookPage() {
         body: JSON.stringify({
           booking_date: selectedDate,
           start_time: selectedSlot,
-          customer_name: formData.name,
-          customer_phone: formData.phone,
-          customer_email: formData.email,
+          customer_name: formData.name.trim(),
+          customer_phone: formData.phone.trim(),
+          customer_email: formData.email.trim() || undefined,
           customer_type: formData.customerType,
-          organization_unit: formData.organizationUnit,
-          notes: formData.notes,
+          organization_unit: formData.organizationUnit?.trim() || undefined,
+          notes: formData.notes?.trim() || undefined,
+          coupon_code: couponCode || undefined,
+          discount_amount: discountAmount > 0 ? discountAmount : undefined,
         }),
       });
 
@@ -133,8 +189,9 @@ export default function BookPage() {
 
       if (!response.ok) {
         setSubmitError(result.error || 'Failed to complete booking. Please try again.');
+        // If conflict error (409), immediately refresh slots to reflect updated availability
         if (response.status === 409) {
-          fetchSlots(selectedDate);
+          fetchSlots(selectedDate, false);
         }
         setIsSubmitting(false);
         return;
@@ -159,7 +216,10 @@ export default function BookPage() {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify(result.booking),
+            body: JSON.stringify({
+              ...result.booking,
+              coupon_code: result.booking.coupon_code || couponCode || 'NONE',
+            }),
           }).catch((syncErr) => console.warn('Client sheets sync notice:', syncErr));
         } catch (_) {}
       }
@@ -177,7 +237,7 @@ export default function BookPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa] flex flex-col">
+    <div className="min-h-screen bg-[#fafafa] flex flex-col font-sans">
       {/* Header */}
       <header className="border-b border-neutral-200 bg-white sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
@@ -195,7 +255,7 @@ export default function BookPage() {
 
           <div className="text-right">
             <span className="font-mono text-xs text-neutral-900 font-medium">
-              {BUSINESS_CONFIG.currencySymbol}{BUSINESS_CONFIG.priceInr}
+              {BUSINESS_CONFIG.currencySymbol}{currentPrice}
             </span>
           </div>
         </div>
@@ -215,7 +275,7 @@ export default function BookPage() {
                 Book your session.
               </h1>
               <p className="text-sm sm:text-base text-neutral-600">
-                One guest per slot. Pay {BUSINESS_CONFIG.currencySymbol}{BUSINESS_CONFIG.priceInr} in person after your session.
+                One guest per slot. Pay {BUSINESS_CONFIG.currencySymbol}{currentPrice} in person after your session.
               </p>
             </div>
 
@@ -251,9 +311,13 @@ export default function BookPage() {
                   time={selectedSlot}
                   name={formData.name || 'Your Name'}
                   phone={formData.phone || 'Your Phone'}
-                  email={formData.email || 'Your Email'}
+                  email={formData.email}
                   customerType={formData.customerType}
-                  organizationUnit={formData.organizationUnit || 'Campus / Department'}
+                  couponCode={couponCode}
+                  discountAmount={discountAmount}
+                  finalAmount={currentPrice}
+                  onApplyCoupon={handleApplyCoupon}
+                  onRemoveCoupon={handleRemoveCoupon}
                   isSubmitting={isSubmitting}
                   onConfirm={handleConfirmBooking}
                   error={submitError}

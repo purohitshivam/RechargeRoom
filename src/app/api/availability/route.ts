@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRepository } from '@/lib/db';
 import { generateSlotsForDate, getCurrentDateIST, isOperatingDate } from '@/lib/utils';
+import { fetchLiveBookedSlotsFromGoogleSheet } from '@/lib/sheets';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,16 +25,29 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let bookedTimes: string[] = [];
+    // 1. Local / Database booked slots
+    let localBookedTimes: string[] = [];
     try {
       const repo = getRepository();
-      bookedTimes = await repo.getBookedSlots(dateStr);
+      localBookedTimes = await repo.getBookedSlots(dateStr);
     } catch (err: any) {
-      console.warn('[Availability API] Notice: Database query failed, proceeding with free slots:', err?.message || err);
-      bookedTimes = [];
+      console.warn('[Availability API] Database query notice:', err?.message || err);
+      localBookedTimes = [];
     }
 
-    const slots = generateSlotsForDate(dateStr, bookedTimes);
+    // 2. Query live Google Sheet so all serverless instances immediately see confirmed reservations
+    let sheetBookedTimes: string[] = [];
+    try {
+      sheetBookedTimes = await fetchLiveBookedSlotsFromGoogleSheet(dateStr);
+    } catch (err: any) {
+      console.warn('[Availability API] Sheet query notice:', err?.message || err);
+      sheetBookedTimes = [];
+    }
+
+    // Merge both sources (deduplicated)
+    const combinedBookedTimes = Array.from(new Set([...localBookedTimes, ...sheetBookedTimes]));
+
+    const slots = generateSlotsForDate(dateStr, combinedBookedTimes);
     const availableCount = slots.filter((s) => s.available).length;
 
     return NextResponse.json({
