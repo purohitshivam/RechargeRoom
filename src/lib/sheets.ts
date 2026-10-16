@@ -185,6 +185,7 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
       // Prepare payload with explicit coupon code and note redundancy
       const payload = {
         ...booking,
+        amount: booking.amount === 0 ? '0' : booking.amount,
         coupon_code: booking.coupon_code || 'NONE',
         notes: booking.notes
           ? `${booking.notes} ${booking.coupon_code ? `[Coupon: ${booking.coupon_code}]` : ''}`.trim()

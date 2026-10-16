@@ -232,6 +232,7 @@ export default function BookPage() {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
               ...result.booking,
+              amount: result.booking.amount === 0 ? '0' : result.booking.amount,
               coupon_code: result.booking.coupon_code || couponCode || 'NONE',
             }),
           }).catch((syncErr) => console.warn('Client sheets sync notice:', syncErr));

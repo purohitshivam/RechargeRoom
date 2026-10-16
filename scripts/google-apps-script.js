@@ -122,7 +122,7 @@ function doPost(e) {
       data.notes || '',
       (data.booking_status || 'confirmed').toUpperCase(),
       (data.payment_status || 'pending').toUpperCase(),
-      data.amount || 249,
+      (typeof data.amount !== 'undefined' && data.amount !== null && data.amount !== '') ? data.amount : 249,
       data.coupon_code || 'NONE',
       data.updated_at || new Date().toISOString()
     ];
