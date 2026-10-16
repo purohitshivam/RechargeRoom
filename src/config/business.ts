@@ -52,4 +52,5 @@ export const CONTACT_CONFIG = {
   arrivalGuidance: 'Please go to Capital Building, 11th Floor, 5 minutes before your designated time.',
   googleSheetUrl: 'https://docs.google.com/spreadsheets/d/1jsla1KjhwcmCRdFURifSEa2_Eo3kYPpyBssie97K9qE/edit',
   defaultSheetId: '1jsla1KjhwcmCRdFURifSEa2_Eo3kYPpyBssie97K9qE',
+  defaultWebhookUrl: 'https://script.google.com/macros/s/AKfycbzvDNcoAuJamYOiC9WSYJUgAoX6IXjJqk8EGSz3Zy1vhRd2em1zGBajxITh6dXnCxgdFA/exec',
 };

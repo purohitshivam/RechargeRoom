@@ -7,7 +7,7 @@ import {
   getCurrentDateIST,
   isOperatingDate,
 } from '@/lib/utils';
-import { BUSINESS_CONFIG } from '@/config/business';
+import { BUSINESS_CONFIG, CONTACT_CONFIG } from '@/config/business';
 
 export class SupabaseBookingRepository implements BookingRepository {
   private client: SupabaseClient;
@@ -215,8 +215,9 @@ export class SupabaseBookingRepository implements BookingRepository {
     const unsyncedCount = bookings.filter((b) => !b.synced_to_sheets).length;
 
     const webhookUrl =
-      (await this.getSetting('google_sheet_webhook_url')) ||
       process.env.GOOGLE_SHEET_WEBHOOK_URL ||
+      (await this.getSetting('google_sheet_webhook_url')) ||
+      CONTACT_CONFIG.defaultWebhookUrl ||
       null;
 
     const hasServiceAccount = !!(

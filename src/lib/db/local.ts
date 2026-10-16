@@ -11,7 +11,7 @@ import {
   timeToMinutes,
   isOperatingDate,
 } from '@/lib/utils';
-import { BUSINESS_CONFIG } from '@/config/business';
+import { BUSINESS_CONFIG, CONTACT_CONFIG } from '@/config/business';
 
 // Global in-memory cache to ensure serverless reliability even if filesystem is restricted
 declare global {
@@ -52,7 +52,28 @@ function ensureDbFile(): string | null {
       fs.mkdirSync(dataDir, { recursive: true });
     }
     if (!fs.existsSync(dbFile)) {
-      fs.writeFileSync(dbFile, JSON.stringify({ bookings: globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ || [] }, null, 2), 'utf-8');
+      const seedFile = path.join(process.cwd(), 'data', 'local-db.json');
+      let seeded = false;
+      if (fs.existsSync(seedFile)) {
+        try {
+          fs.copyFileSync(seedFile, dbFile);
+          seeded = true;
+        } catch (_) {}
+      }
+      if (!seeded) {
+        fs.writeFileSync(
+          dbFile,
+          JSON.stringify(
+            {
+              bookings: globalThis.__RECHARGE_ROOM_LOCAL_BOOKINGS__ || [],
+              settings: globalThis.__RECHARGE_ROOM_SETTINGS__ || {},
+            },
+            null,
+            2
+          ),
+          'utf-8'
+        );
+      }
     }
     return dbFile;
   } catch (err) {
@@ -327,8 +348,9 @@ export class LocalBookingRepository implements BookingRepository {
     const unsyncedCount = bookings.filter((b) => !b.synced_to_sheets).length;
 
     const webhookUrl =
-      (await this.getSetting('google_sheet_webhook_url')) ||
       process.env.GOOGLE_SHEET_WEBHOOK_URL ||
+      (await this.getSetting('google_sheet_webhook_url')) ||
+      CONTACT_CONFIG.defaultWebhookUrl ||
       null;
 
     const hasServiceAccount = !!(

@@ -25,6 +25,11 @@ const HEADERS = [
 ];
 
 export async function getEffectiveWebhookUrl(): Promise<string | null> {
+  const envUrl = process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim();
+  }
+
   try {
     const repo = getRepository();
     const custom = await repo.getSetting('google_sheet_webhook_url');
@@ -33,9 +38,8 @@ export async function getEffectiveWebhookUrl(): Promise<string | null> {
     }
   } catch (_) {}
 
-  const envUrl = process.env.GOOGLE_SHEET_WEBHOOK_URL;
-  if (envUrl && envUrl.trim().length > 0) {
-    return envUrl.trim();
+  if (CONTACT_CONFIG.defaultWebhookUrl) {
+    return CONTACT_CONFIG.defaultWebhookUrl;
   }
 
   return null;
