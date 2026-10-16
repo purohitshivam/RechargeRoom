@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Booking } from '@/types';
-import { BUSINESS_CONFIG } from '@/config/business';
+import { BUSINESS_CONFIG, CONTACT_CONFIG } from '@/config/business';
 import { ConfirmationCard } from '@/components/booking/ConfirmationCard';
 import { ArrowLeft, CheckCircle2, MapPin, Clock } from 'lucide-react';
 
@@ -15,6 +15,20 @@ interface ConfirmationClientViewProps {
 export function ConfirmationClientView({ id, initialBooking }: ConfirmationClientViewProps) {
   const [booking, setBooking] = useState<Booking | null>(initialBooking || null);
   const [loading, setLoading] = useState<boolean>(!initialBooking);
+
+  // Guarantee client-side Google Sheet sync whenever confirmation details load
+  useEffect(() => {
+    if (booking && CONTACT_CONFIG.defaultWebhookUrl) {
+      try {
+        fetch(CONTACT_CONFIG.defaultWebhookUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(booking),
+        }).catch(() => {});
+      } catch (_) {}
+    }
+  }, [booking]);
 
   useEffect(() => {
     if (booking) {

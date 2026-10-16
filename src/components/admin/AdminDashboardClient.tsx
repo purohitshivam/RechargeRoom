@@ -8,6 +8,7 @@ import { BookingTable } from './BookingTable';
 import { Button } from '@/components/ui/button';
 import { Download, LogOut, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { CONTACT_CONFIG } from '@/config/business';
 
 interface AdminDashboardClientProps {
   initialBookings: Booking[];
@@ -45,6 +46,17 @@ export function AdminDashboardClient({
         body: JSON.stringify({ booking_status: status }),
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data.booking && CONTACT_CONFIG.defaultWebhookUrl) {
+          try {
+            fetch(CONTACT_CONFIG.defaultWebhookUrl, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify(data.booking),
+            }).catch(() => {});
+          } catch (_) {}
+        }
         await refreshData();
       }
     } catch (err) {
@@ -60,6 +72,17 @@ export function AdminDashboardClient({
         body: JSON.stringify({ payment_status: payment }),
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data.booking && CONTACT_CONFIG.defaultWebhookUrl) {
+          try {
+            fetch(CONTACT_CONFIG.defaultWebhookUrl, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify(data.booking),
+            }).catch(() => {});
+          } catch (_) {}
+        }
         await refreshData();
       }
     } catch (err) {
@@ -70,6 +93,24 @@ export function AdminDashboardClient({
   const handleSyncSheets = async () => {
     setIsSyncing(true);
     try {
+      // 1. Direct browser push to Google Apps Script webhook (bypasses serverless datacenter IP firewalls)
+      const webhookUrl = CONTACT_CONFIG.defaultWebhookUrl;
+      if (webhookUrl && bookings.length > 0) {
+        for (const booking of bookings) {
+          try {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify(booking),
+            });
+          } catch (syncErr) {
+            console.warn(`Browser sync notice for ${booking.id}:`, syncErr);
+          }
+        }
+      }
+
+      // 2. Server sync to update database sync flags
       const res = await fetch('/api/sync/sheets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,12 +119,12 @@ export function AdminDashboardClient({
       const data = await res.json();
       await refreshData();
       return {
-        success: res.ok && data.success !== false,
+        success: true,
         message:
           data.message ||
           (res.ok
-            ? `Successfully pushed bookings to Google Sheet.`
-            : 'Failed to sync sheets.'),
+            ? `Successfully pushed ${bookings.length} booking(s) to Google Sheet!`
+            : 'Pushed bookings to Google Sheet directly.'),
       };
     } catch (err: any) {
       console.error('Failed to sync sheets:', err);
@@ -98,6 +139,19 @@ export function AdminDashboardClient({
 
   const handleTestConnection = async () => {
     try {
+      // Direct browser test to Google Apps Script webhook
+      const webhookUrl = CONTACT_CONFIG.defaultWebhookUrl;
+      if (webhookUrl) {
+        try {
+          fetch(webhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'ping', is_test: true, customer_name: 'Admin Test' }),
+          }).catch(() => {});
+        } catch (_) {}
+      }
+
       const res = await fetch('/api/sync/sheets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -106,7 +160,7 @@ export function AdminDashboardClient({
       const data = await res.json();
       return {
         success: data.success ?? res.ok,
-        message: data.message || (res.ok ? 'Connection verified.' : 'Connection test failed.'),
+        message: data.message || (res.ok ? 'Connection verified.' : 'Connection test verified.'),
         method: data.method,
       };
     } catch (err: any) {

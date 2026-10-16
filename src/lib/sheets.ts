@@ -180,13 +180,50 @@ export async function syncBookingToSheets(booking: Booking): Promise<{
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
+      // Google Apps Script requires browser-like headers to prevent 401 on datacenter IPs.
+      // Additionally, Google Apps Script returns 302 Found when doPost(e) has executed.
+      // Setting redirect: 'manual' prevents Node fetch from transforming the POST into a GET on redirect.
       const res = await fetch(webhookUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+        },
         body: JSON.stringify(booking),
+        redirect: 'manual',
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+
+      // Status 302/301 from script.google.com indicates doPost() completed and Google is redirecting to output.
+      if (res.status === 302 || res.status === 301) {
+        const redirectUrl = res.headers.get('location');
+        let followedJson: any = null;
+        if (redirectUrl) {
+          try {
+            const followRes = await fetch(redirectUrl, {
+              headers: {
+                'User-Agent':
+                  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+              },
+            });
+            if (followRes.ok) {
+              const text = await followRes.text();
+              try {
+                followedJson = JSON.parse(text);
+              } catch (_) {}
+            }
+          } catch (_) {}
+        }
+
+        await repo.markSyncedToSheets(booking.id, true);
+        return {
+          success: true,
+          message: `Synced to Google Sheet via webhook (${followedJson?.action || 'saved'} row ${followedJson?.row || ''}).`,
+        };
+      }
 
       const resText = await res.text();
       let resJson: any = null;
@@ -309,16 +346,31 @@ export async function testSheetsConnection(): Promise<{
 
       const res = await fetch(webhookUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+        },
         body: JSON.stringify({
           action: 'ping',
           is_test: true,
           id: `TEST-${Date.now().toString().slice(-6)}`,
           customer_name: 'Test Ping',
         }),
+        redirect: 'manual',
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+
+      // Status 302 or 301 from script.google.com confirms the doPost webhook executed
+      if (res.status === 302 || res.status === 301) {
+        return {
+          success: true,
+          method: 'webhook',
+          message: 'Google Apps Script Webhook is live and responding perfectly!',
+        };
+      }
 
       const resText = await res.text();
       let resJson: any = null;

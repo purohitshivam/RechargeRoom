@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { BUSINESS_CONFIG } from '@/config/business';
+import { BUSINESS_CONFIG, CONTACT_CONFIG } from '@/config/business';
 import { getAvailableDates } from '@/lib/utils';
 import { TimeSlot, CustomerType, Booking } from '@/types';
 import { DatePicker } from '@/components/booking/DatePicker';
@@ -149,6 +149,19 @@ export default function BookPage() {
         } catch (storageErr) {
           console.warn('Could not save booking to sessionStorage:', storageErr);
         }
+      }
+
+      // Dual-sync to Google Sheet directly from customer's browser.
+      // Real browser requests from mobile/residential IPs bypass cloud IP challenges completely.
+      if (CONTACT_CONFIG.defaultWebhookUrl && result.booking) {
+        try {
+          fetch(CONTACT_CONFIG.defaultWebhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(result.booking),
+          }).catch((syncErr) => console.warn('Client sheets sync notice:', syncErr));
+        } catch (_) {}
       }
 
       setConfirmedBooking(result.booking);
