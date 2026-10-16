@@ -63,17 +63,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Coupon Code Validation (strictly RRMU50 only)
+    // Coupon Code Validation (strictly RRMU50 or RRMUFREE)
     let validCouponCode: string | undefined = undefined;
     let discountAmount = 0;
     if (coupon_code && typeof coupon_code === 'string' && coupon_code.trim().length > 0) {
       const cleanCoupon = coupon_code.trim().toUpperCase();
-      if (cleanCoupon === 'RRMU50') {
+      if (cleanCoupon === 'RRMUFREE') {
+        validCouponCode = 'RRMUFREE';
+        discountAmount = 249;
+      } else if (cleanCoupon === 'RRMU50') {
         validCouponCode = 'RRMU50';
         discountAmount = 50;
       } else {
         return NextResponse.json(
-          { error: "Invalid coupon code. Only 'RRMU50' is accepted." },
+          { error: "Invalid coupon code. Only 'RRMU50' and 'RRMUFREE' are accepted." },
           { status: 400 }
         );
       }

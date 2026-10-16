@@ -70,7 +70,7 @@ export function ConfirmationCard({ booking }: ConfirmationCardProps) {
           <div className="flex justify-between py-1 items-center">
             <span className="text-emerald-700 font-medium">Coupon Applied</span>
             <span className="font-mono text-xs text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 border border-emerald-200">
-              {booking.coupon_code} (-₹{booking.discount_amount || 50})
+              {booking.coupon_code} (-₹{booking.discount_amount || (booking.coupon_code === 'RRMUFREE' ? 249 : 50)})
             </span>
           </div>
         )}
@@ -78,14 +78,14 @@ export function ConfirmationCard({ booking }: ConfirmationCardProps) {
         <div className="flex justify-between py-1 items-baseline">
           <span className="text-neutral-500">Amount Due</span>
           <span className="font-sans text-xl text-neutral-950 font-bold">
-            {BUSINESS_CONFIG.currencySymbol}{booking.amount}
+            {booking.amount === 0 ? '₹0 (FREE)' : `${BUSINESS_CONFIG.currencySymbol}${booking.amount}`}
           </span>
         </div>
 
         <div className="flex justify-between py-1">
           <span className="text-neutral-500">Payment Status</span>
           <span className="font-mono text-xs uppercase px-2 py-0.5 bg-neutral-100 text-neutral-800 border border-neutral-200">
-            Pay after your session
+            {booking.amount === 0 ? 'Complimentary (No Payment Needed)' : 'Pay after your session'}
           </span>
         </div>
       </div>

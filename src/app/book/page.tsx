@@ -41,7 +41,12 @@ export default function BookPage() {
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
 
   // Active pricing based on applied coupon
-  const currentPrice = couponCode ? 199 : BUSINESS_CONFIG.priceInr;
+  const currentPrice =
+    couponCode === 'RRMUFREE'
+      ? 0
+      : couponCode === 'RRMU50'
+      ? 199
+      : BUSINESS_CONFIG.priceInr;
 
   // Load availability whenever selected date changes
   const fetchSlots = useCallback(async (dateStr: string, isSilent = false) => {
@@ -110,6 +115,15 @@ export default function BookPage() {
 
   const handleApplyCoupon = (code: string) => {
     const clean = code.trim().toUpperCase();
+    if (clean === 'RRMUFREE') {
+      setCouponCode('RRMUFREE');
+      setDiscountAmount(249);
+      return {
+        success: true,
+        message: 'Coupon RRMUFREE verified! 100% Free Session (₹0).',
+        discount: 249,
+      };
+    }
     if (clean === 'RRMU50') {
       setCouponCode('RRMU50');
       setDiscountAmount(50);
@@ -121,7 +135,7 @@ export default function BookPage() {
     }
     return {
       success: false,
-      message: "Invalid coupon code. Only 'RRMU50' is accepted.",
+      message: "Invalid coupon code. Only 'RRMU50' or 'RRMUFREE' are accepted.",
     };
   };
 
@@ -275,7 +289,9 @@ export default function BookPage() {
                 Book your session.
               </h1>
               <p className="text-sm sm:text-base text-neutral-600">
-                One guest per slot. Pay {BUSINESS_CONFIG.currencySymbol}{currentPrice} in person after your session.
+                {currentPrice === 0
+                  ? 'One guest per slot. 100% complimentary session with coupon RRMUFREE.'
+                  : `One guest per slot. Pay ${BUSINESS_CONFIG.currencySymbol}${currentPrice} in person after your session.`}
               </p>
             </div>
 

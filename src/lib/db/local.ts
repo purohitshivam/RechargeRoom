@@ -195,8 +195,18 @@ export class LocalBookingRepository implements BookingRepository {
       }
 
       // 3. Create booking
-      const discount = input.coupon_code === 'RRMU50' ? 50 : (input.discount_amount || 0);
-      const finalAmount = input.coupon_code === 'RRMU50' ? 199 : BUSINESS_CONFIG.priceInr;
+      let discount = 0;
+      let finalAmount = BUSINESS_CONFIG.priceInr;
+      if (input.coupon_code === 'RRMUFREE') {
+        discount = 249;
+        finalAmount = 0;
+      } else if (input.coupon_code === 'RRMU50') {
+        discount = 50;
+        finalAmount = 199;
+      } else if (input.discount_amount) {
+        discount = input.discount_amount;
+        finalAmount = Math.max(0, BUSINESS_CONFIG.priceInr - discount);
+      }
 
       const newBooking: Booking = {
         id: generateBookingId(input.booking_date),

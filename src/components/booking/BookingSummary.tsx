@@ -146,7 +146,7 @@ export function BookingSummary({
                   setCouponInput(e.target.value.toUpperCase());
                   setCouponFeedback(null);
                 }}
-                placeholder="Enter coupon code (e.g. RRMU50)"
+                placeholder="Enter coupon code (e.g. RRMU50, RRMUFREE)"
                 className="flex-1 h-10 px-3.5 bg-white border border-neutral-300 font-mono text-xs sm:text-sm uppercase text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-950"
               />
               <button
@@ -168,7 +168,11 @@ export function BookingSummary({
           {couponCode && (
             <div className="mt-2 text-xs flex items-center gap-1.5 text-emerald-700 font-medium">
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              <span>Coupon RRMU50 verified! You save ₹50 on this session.</span>
+              <span>
+                {couponCode === 'RRMUFREE'
+                  ? 'Coupon RRMUFREE verified! 100% Free Session (₹0).'
+                  : `Coupon ${couponCode} verified! You save ₹${discountAmount} on this session.`}
+              </span>
             </div>
           )}
         </div>
@@ -196,7 +200,7 @@ export function BookingSummary({
                 {BUSINESS_CONFIG.currencySymbol}{finalAmount}
               </span>
               <span className="block text-[11px] font-mono text-neutral-500">
-                Pay in person after massage
+                {finalAmount === 0 ? 'Complimentary session' : 'Pay in person after massage'}
               </span>
             </div>
           </div>
@@ -206,8 +210,12 @@ export function BookingSummary({
         <div className="p-4 bg-neutral-100 border border-neutral-200 mb-6 flex items-start gap-3">
           <ShieldCheck className="w-5 h-5 text-neutral-900 mt-0.5 shrink-0" />
           <p className="text-xs text-neutral-700 leading-relaxed font-normal">
-            <strong className="text-neutral-950 block mb-0.5 font-semibold">Pay On-Site via UPI or Cash:</strong>
-            Your slot is reserved online with zero advance card payment. Pay {BUSINESS_CONFIG.currencySymbol}{finalAmount} physically after your 15-minute session is complete.
+            <strong className="text-neutral-950 block mb-0.5 font-semibold">
+              {finalAmount === 0 ? 'Free Complimentary Session:' : 'Pay On-Site via UPI or Cash:'}
+            </strong>
+            {finalAmount === 0
+              ? 'Your slot is 100% complimentary with coupon RRMUFREE. No payment is required.'
+              : `Your slot is reserved online with zero advance card payment. Pay ${BUSINESS_CONFIG.currencySymbol}${finalAmount} physically after your 15-minute session is complete.`}
           </p>
         </div>
 
@@ -222,7 +230,7 @@ export function BookingSummary({
           isLoading={isSubmitting}
           className="w-full h-13 text-sm tracking-wider uppercase flex items-center justify-center gap-2 min-h-[48px] font-medium"
         >
-          <span>Confirm my booking · {BUSINESS_CONFIG.currencySymbol}{finalAmount}</span>
+          <span>Confirm my booking · {finalAmount === 0 ? 'FREE' : `${BUSINESS_CONFIG.currencySymbol}${finalAmount}`}</span>
           <ArrowRight className="w-4 h-4" />
         </Button>
       </div>

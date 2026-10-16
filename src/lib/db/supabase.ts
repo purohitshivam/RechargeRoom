@@ -47,7 +47,14 @@ export class SupabaseBookingRepository implements BookingRepository {
     const bookingId = generateBookingId(input.booking_date);
     const endTime = addMinutesToTime(input.start_time, BUSINESS_CONFIG.durationMinutes);
 
-    const finalAmount = input.coupon_code === 'RRMU50' ? 199 : BUSINESS_CONFIG.priceInr;
+    const finalAmount =
+      input.coupon_code === 'RRMUFREE'
+        ? 0
+        : input.coupon_code === 'RRMU50'
+        ? 199
+        : input.discount_amount
+        ? Math.max(0, BUSINESS_CONFIG.priceInr - input.discount_amount)
+        : BUSINESS_CONFIG.priceInr;
 
     // Call atomic Postgres stored procedure
     const { data, error } = await this.client.rpc('create_booking_atomic', {

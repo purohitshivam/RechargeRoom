@@ -257,3 +257,24 @@ test('Booking creation succeeds with only Name and Phone (Email and Org optional
   assert.equal(result.booking.customer_phone, '9876543210');
   assert.equal(result.booking.customer_email, '');
 });
+
+test('LocalBookingRepository applies RRMUFREE coupon code correctly for ₹0 final amount', async () => {
+  const repo = new LocalBookingRepository();
+  const testDate = '2026-11-20';
+
+  const result = await repo.createBooking({
+    booking_date: testDate,
+    start_time: '16:45',
+    customer_name: 'Free Coupon Guest',
+    customer_phone: '9876543210',
+    customer_type: 'student',
+    coupon_code: 'RRMUFREE',
+    discount_amount: 249,
+  });
+
+  assert.equal(result.success, true);
+  assert.ok(result.booking);
+  assert.equal(result.booking.amount, 0, 'Amount must be 0 after RRMUFREE discount');
+  assert.equal(result.booking.coupon_code, 'RRMUFREE');
+  assert.equal(result.booking.discount_amount, 249);
+});
