@@ -278,3 +278,32 @@ test('LocalBookingRepository applies RRMUFREE coupon code correctly for ₹0 fin
   assert.equal(result.booking.coupon_code, 'RRMUFREE');
   assert.equal(result.booking.discount_amount, 249);
 });
+
+test('Dates in fullyBookedDates mark all operating slots as booked and reject bookings', async () => {
+  const repo = new LocalBookingRepository();
+
+  // Test Oct 19 & Oct 20
+  for (const dateStr of ['2026-10-19', '2026-10-20']) {
+    const slots = generateSlotsForDate(dateStr, []);
+    const availableSlots = slots.filter((s) => s.available);
+    assert.equal(availableSlots.length, 0, `All slots on ${dateStr} must be unavailable`);
+
+    const nonBreakSlots = slots.filter((s) => s.reason !== 'break');
+    assert.ok(nonBreakSlots.length > 0);
+    assert.ok(
+      nonBreakSlots.every((s) => s.reason === 'booked'),
+      `All non-break slots on ${dateStr} must have reason 'booked'`
+    );
+
+    const bookingAttempt = await repo.createBooking({
+      booking_date: dateStr,
+      start_time: '14:00',
+      customer_name: 'Test Attempt',
+      customer_phone: '9876543210',
+      customer_type: 'student',
+    });
+
+    assert.equal(bookingAttempt.success, false);
+    assert.match(bookingAttempt.error || '', /fully reserved/);
+  }
+});

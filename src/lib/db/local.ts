@@ -154,6 +154,10 @@ export class LocalBookingRepository implements BookingRepository {
         return { success: false, error: 'Recharge Room is closed on this day.' };
       }
 
+      if ((BUSINESS_CONFIG.fullyBookedDates || []).includes(input.booking_date)) {
+        return { success: false, error: 'All slots for this date are fully reserved. Please choose another date.' };
+      }
+
       const todayIST = getCurrentDateIST();
       const nowTimeIST = getCurrentTimeIST();
 

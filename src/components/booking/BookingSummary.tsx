@@ -146,8 +146,8 @@ export function BookingSummary({
                   setCouponInput(e.target.value.toUpperCase());
                   setCouponFeedback(null);
                 }}
-                placeholder="Enter coupon code (e.g. RRMU50, RRMUFREE)"
-                className="flex-1 h-10 px-3.5 bg-white border border-neutral-300 font-mono text-xs sm:text-sm uppercase text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-950"
+                placeholder="Enter coupon code here"
+                className="flex-1 h-10 px-3.5 bg-white border border-neutral-300 font-mono text-xs sm:text-sm uppercase placeholder:normal-case text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-950"
               />
               <button
                 type="submit"

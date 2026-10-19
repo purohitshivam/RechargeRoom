@@ -3,6 +3,7 @@ import { getRepository } from '@/lib/db';
 import { CreateBookingInput, CustomerType } from '@/types';
 import { syncBookingToSheets, fetchLiveBookedSlotsFromGoogleSheet } from '@/lib/sheets';
 import { isAuthenticatedAdmin } from '@/lib/auth';
+import { BUSINESS_CONFIG } from '@/config/business';
 
 function validateMobileNumber(phone: string): boolean {
   // Cleans out spaces, dashes, +91 prefix
@@ -34,6 +35,13 @@ export async function POST(request: NextRequest) {
     // 1. Validation
     if (!booking_date || !/^\d{4}-\d{2}-\d{2}$/.test(booking_date)) {
       return NextResponse.json({ error: 'Please choose a valid booking date.' }, { status: 400 });
+    }
+
+    if ((BUSINESS_CONFIG.fullyBookedDates || []).includes(booking_date)) {
+      return NextResponse.json(
+        { error: 'All slots for this date are fully reserved. Please choose another date.' },
+        { status: 409 }
+      );
     }
 
     if (!start_time || !/^\d{2}:\d{2}$/.test(start_time)) {

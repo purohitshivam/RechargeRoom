@@ -193,6 +193,7 @@ export function generateSlotsForDate(
   const minNotice = BUSINESS_CONFIG.minAdvanceNoticeMinutes;
 
   const bookedSet = new Set(bookedStartTimes);
+  const isFullyBookedDate = (BUSINESS_CONFIG.fullyBookedDates || []).includes(dateStr);
 
   for (let m = openMinutes; m + step <= closeMinutes; m += step) {
     const timeStr = minutesToTime(m);
@@ -201,20 +202,20 @@ export function generateSlotsForDate(
     let available = true;
     let reason: TimeSlot['reason'] = undefined;
 
-    // Check if in the past (including advance notice requirement)
-    if (isToday && m <= currentMinutesIST + minNotice) {
-      available = false;
-      reason = 'past';
-    }
     // Check if within break window
-    else if (isTimeInBreak(timeStr)) {
+    if (isTimeInBreak(timeStr)) {
       available = false;
       reason = 'break';
     }
-    // Check if already reserved
-    else if (bookedSet.has(timeStr)) {
+    // Check if fully booked date or already reserved
+    else if (isFullyBookedDate || bookedSet.has(timeStr)) {
       available = false;
       reason = 'booked';
+    }
+    // Check if in the past (including advance notice requirement)
+    else if (isToday && m <= currentMinutesIST + minNotice) {
+      available = false;
+      reason = 'past';
     }
 
     slots.push({

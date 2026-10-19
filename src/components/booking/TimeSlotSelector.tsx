@@ -106,10 +106,24 @@ export function TimeSlotSelector({
         <label className="text-xs font-mono uppercase tracking-wider text-neutral-500">
           2. Select 15-Minute Slot
         </label>
-        <span className="text-xs font-mono text-neutral-500">
-          {availableSlots.length} slot{availableSlots.length === 1 ? '' : 's'} free
+        <span
+          className={cn(
+            'text-xs font-mono',
+            availableSlots.length === 0 ? 'text-amber-800 font-medium' : 'text-neutral-500'
+          )}
+        >
+          {availableSlots.length === 0
+            ? 'All slots reserved'
+            : `${availableSlots.length} slot${availableSlots.length === 1 ? '' : 's'} free`}
         </span>
       </div>
+
+      {availableSlots.length === 0 && (
+        <div className="mb-3 p-3 bg-neutral-50 border border-neutral-200 text-xs text-neutral-700 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+          <span>All sessions for this date are fully reserved. Please choose an upcoming date to book.</span>
+        </div>
+      )}
 
       <div className="bg-white border border-neutral-200 p-5 sm:p-6">
         {renderSlotGroup('Midday (12:00 PM – 2:30 PM)', middaySlots)}

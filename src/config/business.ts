@@ -43,6 +43,9 @@ export const BUSINESS_CONFIG: BusinessConfig = {
 
   locationNote: 'Capital Building, 11th Floor',
   paymentNote: 'Pay ₹249 in person after your session. No online payment required.',
+
+  // Dates where all slots are marked as fully reserved
+  fullyBookedDates: ['2026-10-19', '2026-10-20'],
 };
 
 export const CONTACT_CONFIG = {

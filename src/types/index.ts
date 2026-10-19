@@ -89,4 +89,5 @@ export interface BusinessConfig {
   capacityPerSlot: number;
   locationNote: string;
   paymentNote: string;
+  fullyBookedDates?: string[]; // Specific dates where all slots are marked as reserved
 }

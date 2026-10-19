@@ -44,6 +44,10 @@ export class SupabaseBookingRepository implements BookingRepository {
       return { success: false, error: 'Recharge Room is closed on this day.' };
     }
 
+    if ((BUSINESS_CONFIG.fullyBookedDates || []).includes(input.booking_date)) {
+      return { success: false, error: 'All slots for this date are fully reserved. Please choose another date.' };
+    }
+
     const bookingId = generateBookingId(input.booking_date);
     const endTime = addMinutesToTime(input.start_time, BUSINESS_CONFIG.durationMinutes);
 
